@@ -155,10 +155,6 @@ curl -L https://github.com/dracula/gtk/releases/latest/download/Dracula-cursors.
   | tar -xJf - -C ~/.icons
 
 
-cd /usr/local/src
-git clone --depth=1 https://github.com/blueman-project/blueman.git
-cd blueman
-
 ### 5.6 misc utils from source ───────────────────────────────────────────────
 
 curl -sfL https://direnv.net/install.sh | bash

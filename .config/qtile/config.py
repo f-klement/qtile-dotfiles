@@ -25,6 +25,7 @@
 # SOFTWARE.
 
 import os
+import colors
 import subprocess
 from zoneinfo import ZoneInfo 
 from libqtile import bar, layout, qtile, widget, hook
@@ -137,10 +138,19 @@ for i in groups:
         ]
     )
 
+colors = colors.DoomOne
+
+layout_theme = {"border_width": 1,
+                "margin": 0,
+                "border_focus": colors[7],
+                "border_normal": colors[0]
+                }
+
+
 layouts = [
-    layout.Columns(border_focus_stack=["#d75f5f", "#8f3d3d"], border_width=1),
-    layout.Spiral(main_pane="left", clockwise=True),
-    layout.Max(),
+    layout.Columns(border_focus_stack=["#d75f5f", "#8f3d3d"], **layout_theme),
+    layout.Spiral(main_pane="left", clockwise=True, **layout_theme),
+    layout.Max(**layout_theme),
     # Try more layouts by unleashing below layouts.
     # layout.Stack(num_stacks=2),
     # layout.Bsp(),
@@ -158,6 +168,7 @@ widget_defaults = dict(
     font="JetBrainsMono Nerd Font",
     fontsize=12,
     padding=2,
+    background=colors[0]
 )
 
 extension_defaults = widget_defaults.copy()
@@ -175,21 +186,27 @@ def init_widgets():
         # ---- LEFT cluster ---------------------------------------------------
         widget.Spacer(length=1),  # tiny padding
         widget.GroupBox(
-            highlight_method="block",
-            rounded=False,
             padding_x=0,
             margin_x=1,
-            this_current_screen_border="#89B4FA",
-            other_screen_border="#45475A",
+            active = colors[8],
+            inactive = colors[9],
+            rounded = True,
+            highlight_color = colors[0],
+            highlight_method = "line",
+            this_current_screen_border = colors[7],
+            this_screen_border = colors [4],
+            other_current_screen_border = colors[7],
+            other_screen_border = colors[4],
             disable_drag=True,
         ),
-        widget.Prompt(name="prompt", prompt="Run: ", padding=5),
+        widget.Prompt(name="prompt", prompt="Run: ", padding=5, foreground = colors[1]),
         widget.Spacer(length=6),
         # ---- centre ---------------------------------------------------------
         widget.Spacer(length=bar.STRETCH),
         widget.Clock(
             format="%H:%M   %d-%m-%Y",
             timezone=ZoneInfo("Europe/Vienna"),
+            foreground = colors[1],
         ),
         widget.Spacer(length=bar.STRETCH),
 
@@ -201,11 +218,13 @@ def init_widgets():
             mouse_callbacks={
                 "Button3": lazy.spawn("nm-connection-editor"),  # right-click → open NetworkManager GUI
             },
+            foreground = colors[5],
         ),
         #xwidget.Bluetooth(),                 # from qtile-extras
         #widget.Battery(format="  {percent:2.0%}", low_percentage=0.15),
         widget.PulseVolume(
             name="pulsevolume",
+            foreground = colors[7],
             fmt=" {}",                       # single value, no % sign
             mouse_callbacks={
                 "Button1": toggle_vol_text,                                           # show/hide value
@@ -216,11 +235,12 @@ def init_widgets():
             },
         ),
         widget.Memory(
+            foreground = colors[8],
             format="{MemUsed:4.1f}G",   # e.g. “  7.6 G”
             measure_mem="G",               # tell the widget we want GiB/GB
             update_interval=2,
         ),
-        widget.CPU(format=" {load_percent:>3}%", update_interval=2),
+        widget.CPU(foreground = colors[4],format=" {load_percent:>3}%", update_interval=2),
         widget.Systray(icon_size=12, padding=2),
         widget.QuickExit(
             default_text="⏻",
@@ -229,6 +249,9 @@ def init_widgets():
         ),
         widget.Spacer(length=1),
     ]
+
+# For adding transparency to your bar, add (background="#00000000") to the "Screen" line(s)
+# For ex: Screen(top=bar.Bar(widgets=init_widgets_screen2(), background="#00000000", size=24)),
 
 screens = [
     Screen(top=bar.Bar(init_widgets(), 28, opacity=0.0, margin=[0, 6, 0, 6])),
@@ -256,12 +279,27 @@ floating_layout = layout.Floating(
     float_rules=[
         # Run the utility of `xprop` to see the wm class and name of an X client.
         *layout.Floating.default_float_rules,
-        Match(wm_class="confirmreset"),  # gitk
-        Match(wm_class="makebranch"),  # gitk
-        Match(wm_class="maketag"),  # gitk
-        Match(wm_class="ssh-askpass"),  # ssh-askpass
-        Match(title="branchdialog"),  # gitk
-        Match(title="pinentry"),  # GPG key password entry
+        Match(wm_class="confirmreset"),   # gitk
+        Match(wm_class="dialog"),         # dialog boxes
+        Match(wm_class="download"),       # downloads
+        Match(wm_class="error"),          # error msgs
+        Match(wm_class="file_progress"),  # file progress boxes
+        Match(wm_class='kdenlive'),       # kdenlive
+        Match(wm_class="makebranch"),     # gitk
+        Match(wm_class="maketag"),        # gitk
+        Match(wm_class="notification"),   # notifications
+        Match(wm_class='pinentry-gtk-2'), # GPG key password entry
+        Match(wm_class="ssh-askpass"),    # ssh-askpass
+        Match(wm_class="toolbar"),        # toolbars
+        Match(wm_class="Yad"),            # yad boxes
+        Match(title="branchdialog"),      # gitk
+        Match(title='Confirmation'),      # tastyworks exit box
+        Match(title='Qalculate!'),        # qalculate-gtk
+        Match(title="pinentry"),          # GPG key password entry
+        Match(title="tastycharts"),       # tastytrade pop-out charts
+        Match(title="tastytrade"),        # tastytrade pop-out side gutter
+        Match(title="tastytrade - Portfolio Report"), # tastytrade pop-out allocation
+        Match(wm_class="tasty.javafx.launcher.LauncherFxApp"), # tastytrade settings
     ]
 )
 auto_fullscreen = True
