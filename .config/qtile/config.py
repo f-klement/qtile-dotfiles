@@ -27,7 +27,7 @@
 import os
 import subprocess
 from zoneinfo import ZoneInfo 
-from libqtile import bar, layout, qtile, widget, hook, extension
+from libqtile import bar, layout, qtile, widget, hook
 from libqtile.config import Click, Drag, Group, Key, Match, Screen
 from libqtile.lazy import lazy
 from libqtile.utils import guess_terminal
@@ -43,23 +43,28 @@ keys = [
     # A list of available commands that can be bound to keys can be found
     # at https://docs.qtile.org/en/latest/manual/config/lazy.html
     # Switch between windows
-    Key([mod], "Left",  lazy.layout.left(),  desc="Move focus to left"),
-    Key([mod], "Right", lazy.layout.right(), desc="Move focus to right"),
-    Key([mod], "Down",  lazy.layout.down(),  desc="Move focus down"),
-    Key([mod], "Up",    lazy.layout.up(),    desc="Move focus up"),
+    Key([mod], "Left",  lazy.layout.left(),  desc="Focus left"),
+    Key([mod], "Right", lazy.layout.right(), desc="Focus right"),
+    Key([mod], "Up",    lazy.layout.up(),    desc="Focus up"),
+    Key([mod], "Down",  lazy.layout.down(),  desc="Focus down"),
     Key([mod], "t", lazy.layout.next(), desc="Move window focus to other window"),
     # Move windows between left/right columns or move up/down in current stack.
     # Moving out of range in Columns layout will create new column.
-    Key([mod, "shift"], "h", lazy.layout.shuffle_left(), desc="Move window to the left"),
-    Key([mod, "shift"], "l", lazy.layout.shuffle_right(), desc="Move window to the right"),
-    Key([mod, "shift"], "j", lazy.layout.shuffle_down(), desc="Move window down"),
-    Key([mod, "shift"], "k", lazy.layout.shuffle_up(), desc="Move window up"),
+    Key([mod, "shift"], "Left", lazy.layout.shuffle_left(), desc="Move window to the left"),
+    Key([mod, "shift"], "Right", lazy.layout.shuffle_right(), desc="Move window to the right"),
+    Key([mod, "shift"], "Down", lazy.layout.shuffle_down(), desc="Move window down"),
+    Key([mod, "shift"], "Up", lazy.layout.shuffle_up(), desc="Move window up"),
     # Grow windows. If current window is on the edge of screen and direction
     # will be to screen edge - window would shrink.
-    Key([mod, "control"], "h", lazy.layout.grow_left(), desc="Grow window to the left"),
-    Key([mod, "control"], "l", lazy.layout.grow_right(), desc="Grow window to the right"),
-    Key([mod, "control"], "j", lazy.layout.grow_down(), desc="Grow window down"),
-    Key([mod, "control"], "k", lazy.layout.grow_up(), desc="Grow window up"),
+    Key([mod, "control"], "Left", lazy.layout.grow_left(), desc="Grow window to the left"),
+    Key([mod, "control"], "Right", lazy.layout.grow_right(), desc="Grow window to the right"),
+    Key([mod, "control"], "Down", lazy.layout.grow_down(), desc="Grow window down"),
+    Key([mod, "control"], "Up", lazy.layout.grow_up(), desc="Grow window up"),
+    # --- Move *floating* window 40 px at a time (no conflict with mod-shift keys) ---
+    Key([mod, "mod1"], "Left",  lazy.window.move_floating(-40, 0),  desc="Nudge floating window left"),
+    Key([mod, "mod1"], "Right", lazy.window.move_floating( 40, 0),  desc="Nudge floating window right"),
+    Key([mod, "mod1"], "Up",    lazy.window.move_floating( 0, -40), desc="Nudge floating window up"),
+    Key([mod, "mod1"], "Down",  lazy.window.move_floating( 0, 40),  desc="Nudge floating window down"),    
     Key([mod], "n", lazy.layout.normalize(), desc="Reset all window sizes"),
     # new launch shortcuts
     Key([mod], "b", lazy.spawn(browser), desc="Launch browser"),
@@ -89,7 +94,7 @@ keys = [
     Key([mod], "space", lazy.window.toggle_floating(), desc="Toggle floating on the focused window"),
     Key([mod, "control"], "r", lazy.reload_config(), desc="Reload the config"),
     Key([mod, "control"], "q", lazy.shutdown(), desc="Shutdown Qtile"),
-    Key([mod], "r", lazy.spawncmd(), desc="Spawn a command using a prompt widget"),
+    Key([mod], "r", lazy.spawncmd(prompt="Run: "), desc="Spawn a command"),
 ]
 
 # Add key bindings to switch VTs in Wayland.
@@ -133,8 +138,8 @@ for i in groups:
     )
 
 layouts = [
-    layout.Spiral(main_pane="left", clockwise=True),
     layout.Columns(border_focus_stack=["#d75f5f", "#8f3d3d"], border_width=1),
+    layout.Spiral(main_pane="left", clockwise=True),
     layout.Max(),
     # Try more layouts by unleashing below layouts.
     # layout.Stack(num_stacks=2),
@@ -152,10 +157,18 @@ layouts = [
 widget_defaults = dict(
     font="JetBrainsMono Nerd Font",
     fontsize=12,
-    padding=3,
+    padding=2,
 )
 
 extension_defaults = widget_defaults.copy()
+
+# ── helpers ───────────────────────────────────────────────────────────────
+@lazy.function
+def toggle_vol_text(qtile):
+    w = qtile.widgets_map["pulsevolume"]
+    w.fmt = "" if w.fmt.endswith("{}") else " {}"   # no percent sign
+    w.bar.draw()
+# ──────────────────────────────────────────────────────────────────────────
 
 def init_widgets():
     return [
@@ -170,6 +183,7 @@ def init_widgets():
             other_screen_border="#45475A",
             disable_drag=True,
         ),
+        widget.Prompt(name="prompt", prompt="Run: ", padding=5),
         widget.Spacer(length=6),
         # ---- centre ---------------------------------------------------------
         widget.Spacer(length=bar.STRETCH),
@@ -181,21 +195,33 @@ def init_widgets():
 
         # ---- RIGHT cluster --------------------------------------------------
         widget.Net(
-            # ▾/▴ are 1-char arrows from the same Nerd-Font, no spaces needed
-            format="{down:.0f}{down_suffix}▾ {up:.0f}{up_suffix}▴",
+            # ▾/▴ are 1-char arrows from the Nerd-Font set
+            format="{down:.0f}{down_suffix}▾{up:.0f}{up_suffix}▴",
             update_interval=3,
-            #prefix="M",          # IEC units (KiB/MiB…); drop if you prefer kB/MB
+            mouse_callbacks={
+                "Button3": lazy.spawn("nm-connection-editor"),  # right-click → open NetworkManager GUI
+            },
         ),
         #xwidget.Bluetooth(),                 # from qtile-extras
         #widget.Battery(format="  {percent:2.0%}", low_percentage=0.15),
-        widget.PulseVolume(fmt="  {}"),
+        widget.PulseVolume(
+            name="pulsevolume",
+            fmt=" {}",                       # single value, no % sign
+            mouse_callbacks={
+                "Button1": toggle_vol_text,                                           # show/hide value
+                "Button2": lazy.spawn("pavucontrol"),                                 # open mixer
+                "Button3": lazy.spawn("pactl set-sink-mute @DEFAULT_SINK@ toggle"),   # mute/unmute
+                "Button4": lazy.spawn("pactl set-sink-volume @DEFAULT_SINK@ +5%"),    # vol +5 %
+                "Button5": lazy.spawn("pactl set-sink-volume @DEFAULT_SINK@ -5%"),    # vol –5 %
+            },
+        ),
         widget.Memory(
             format="{MemUsed:4.1f}G",   # e.g. “  7.6 G”
             measure_mem="G",               # tell the widget we want GiB/GB
             update_interval=2,
         ),
         widget.CPU(format=" {load_percent:>3}%", update_interval=2),
-        widget.Systray(),
+        widget.Systray(icon_size=12, padding=2),
         widget.QuickExit(
             default_text="⏻",
             countdown_format="⏻ ({}s)",
@@ -207,6 +233,11 @@ def init_widgets():
 screens = [
     Screen(top=bar.Bar(init_widgets(), 28, opacity=0.0, margin=[0, 6, 0, 6])),
 ]
+
+# drag floating window with Mod + left-click
+Drag([mod], "Button1", lazy.window.set_position_floating(),
+     start=lazy.window.get_position()),
+
 
 # Drag floating layouts.
 mouse = [
@@ -245,7 +276,7 @@ auto_minimize = True
 wl_input_rules = None
 
 # xcursor theme (string or None) and size (integer) for Wayland backend
-wl_xcursor_theme = None
+wl_xcursor_theme = "Dracula"
 wl_xcursor_size = 24
 
 # XXX: Gasp! We're lying here. In fact, nobody really uses or cares about this

@@ -26,6 +26,14 @@ QTILE_VENV="/home/$TARGET_USER/.local/venvs/qtile"
 ### 1. Repos ────────────────────────────────────────────────────────────────
 dnf -y install epel-release epel-next-release flatpak git stow
 dnf -y config-manager --set-enabled crb
+dnf install rpmfusion-free-release
+dnf install --nogpgcheck https://mirrors.rpmfusion.org/free/el/rpmfusion-free-release-$(rpm -E %rhel).noarch.rpm https://mirrors.rpmfusion.org/nonfree/el/rpmfusion-nonfree-release-$(rpm -E %rhel).noarch.rpm
+dnf install snapd
+systemctl enable --now snapd.socket
+ln -s /var/lib/snapd/snap /snap
+dnf clean all
+dnf makecache
+dnf update
 
 # Add Flathub remote for user 1000 (adjust if needed)
 sudo -iu "$(logname)" flatpak remote-add --if-not-exists \
@@ -33,7 +41,7 @@ sudo -iu "$(logname)" flatpak remote-add --if-not-exists \
 
 ### 2. QTile X11 ──────────────────────────────────────────────────────────────
 dnf -y install \
-  python3 python3-devel python3-pip libffi-devel cairo cairo-devel \
+  python3 python3-devel python3.12-devel python3-gobject python3-pip libffi-devel cairo cairo-devel \
   pango pango-devel gobject-introspection-devel libXScrnSaver-devel \
   libxkbcommon libxkbcommon-devel xcb-util-keysyms-devel xcb-util-wm-devel \
   xcb-util-devel libXcursor-devel libXinerama-devel python3-pyopengl \
@@ -127,11 +135,11 @@ git clone https://github.com/varietywalls/variety.git
 cd variety
 
 dnf config-manager --set-enabled epel-testing && dnf install python3-distutils-extra python3-pillow 
-dnf install python3-beautifulsoup4 python3-feedparser python3-requests python3-lxml python3-configobj
+dnf install python3-beautifulsoup4 python3-feedparser python3-requests python3-lxml python3-configobj python3-httplib2
 
 python3 setup.py install
 
-### 5.3 fonts from source ───────────────────────────────────────────────
+### 5.4 fonts from source ───────────────────────────────────────────────
 
 tmp=$(mktemp -d)
 curl -L https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip -o "$tmp/jbm.zip"
@@ -141,6 +149,19 @@ fc-cache -fv
 rm -r "$tmp"
 
 fc-cache -fv
+
+mkdir -p ~/.icons
+curl -L https://github.com/dracula/gtk/releases/latest/download/Dracula-cursors.tar.xz \
+  | tar -xJf - -C ~/.icons
+
+
+cd /usr/local/src
+git clone --depth=1 https://github.com/blueman-project/blueman.git
+cd blueman
+
+### 5.6 misc utils from source ───────────────────────────────────────────────
+
+curl -sfL https://direnv.net/install.sh | bash
 
 ### 6. Build-time deps for picom ────────────────────────────────────────────
 ### 1. Dependencies ---------------------------------------------------

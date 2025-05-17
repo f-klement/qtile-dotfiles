@@ -38,7 +38,7 @@ alias cp="cp -i"                          # confirm before overwriting something
 alias df='df -h'                          # human-readable sizes
 alias free='free -m'                      # show sizes in MB
 alias more=less
-
+alias qconf='vim ~/.config/qtile/config.py' 
 #
 # # ex - archive extractor
 # # usage: ex <file>
