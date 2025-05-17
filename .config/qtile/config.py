@@ -70,7 +70,7 @@ keys = [
     # new launch shortcuts
     Key([mod], "b", lazy.spawn(browser), desc="Launch browser"),
     Key([mod], "d", lazy.spawn(files),   desc="Launch file manager"),
-    Key([mod, "mod1"], "space", lazy.spawn("dmenu_run"), desc="Launch dmenu"),
+    Key([mod, "mod1"], "space", lazy.spawn("/usr/local/bin/rofi -show drun"), desc="Launch rofi"), 
     Key([mod], "e", lazy.spawn(editor), desc="Launch VSCodium"),
     # Toggle between split and unsplit sides of stack.
     # Split = all windows displayed
@@ -296,10 +296,7 @@ floating_layout = layout.Floating(
         Match(title='Confirmation'),      # tastyworks exit box
         Match(title='Qalculate!'),        # qalculate-gtk
         Match(title="pinentry"),          # GPG key password entry
-        Match(title="tastycharts"),       # tastytrade pop-out charts
-        Match(title="tastytrade"),        # tastytrade pop-out side gutter
-        Match(title="tastytrade - Portfolio Report"), # tastytrade pop-out allocation
-        Match(wm_class="tasty.javafx.launcher.LauncherFxApp"), # tastytrade settings
+        Match(wm_class="rofi"),           # Rofi Launcher
     ]
 )
 auto_fullscreen = True

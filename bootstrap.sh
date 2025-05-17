@@ -18,10 +18,12 @@ if [[ $EUID -ne 0 ]]; then
   exit 1
 fi
 
-### 0. Variables ─────────────────────────────────────────────────────────────
+### 0. Variables and setup ─────────────────────────────────────────────────────────────
 TARGET_USER="$(logname)"                 # primary human user
 QTILE_VENV="/home/$TARGET_USER/.local/venvs/qtile"
 
+chmod +x ./.config/qtile/lock_with_random_bg.sh
+chmod +x ./.config/qtile/autostart.sh
 
 ### 1. Repos ────────────────────────────────────────────────────────────────
 dnf -y install epel-release epel-next-release flatpak git stow
@@ -134,12 +136,26 @@ cd ..
 git clone https://github.com/varietywalls/variety.git
 cd variety
 
-dnf config-manager --set-enabled epel-testing && dnf install python3-distutils-extra python3-pillow 
+dnf config-manager --set-enabled epel-testing && dnf install python3-distutils-extra python3-pillow imlib2-devel libcurl-devel libXt-devel
 dnf install python3-beautifulsoup4 python3-feedparser python3-requests python3-lxml python3-configobj python3-httplib2
 
 python3 setup.py install
 
-### 5.4 fonts from source ───────────────────────────────────────────────
+### variety dependencies (feh) ───────────────────────────────────────────────
+cd /usr/local/src
+git clone https://github.com/derf/feh.git
+cd feh & make & make install app=1
+
+### 5.4 rofi from source ───────────────────────────────────────────────
+dnf install libxkbcommon-x11-devel xcb-util-cursor-devel
+cd /usr/local/src
+git clone --depth=1 --branch 1.7.3 https://github.com/davatorium/rofi.git
+cd rofi
+meson setup build --prefix=/usr/local --buildtype=release
+ninja -C build
+ninja -C build install
+
+### 5.5 fonts from source ────────────────────────────────────────────────────
 
 tmp=$(mktemp -d)
 curl -L https://github.com/ryanoasis/nerd-fonts/releases/latest/download/JetBrainsMono.zip -o "$tmp/jbm.zip"
@@ -159,7 +175,7 @@ curl -L https://github.com/dracula/gtk/releases/latest/download/Dracula-cursors.
 
 curl -sfL https://direnv.net/install.sh | bash
 
-### 6. Build-time deps for picom ────────────────────────────────────────────
+### 6. Build-time deps for picom ─────────────────────────────────────────────
 ### 1. Dependencies ---------------------------------------------------
 dnf -y groupinstall 'Development Tools'
 dnf -y install \
@@ -178,6 +194,10 @@ ninja -C build install      # installs under /usr/local/bin by default
 
 ### 3. Clean-up placeholder compositor
 dnf -y remove xcompmgr || true
+
+### 4. Clone wallpapers ---------------------------------------------------
+
+cd & cd Pictures/ & git clone https://github.com/f-klement/wallpapers.git
 
 echo "Migration complete! \n Use stow . to symlink the dotfiles once you are settled in"
 

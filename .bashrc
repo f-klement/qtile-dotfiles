@@ -5,6 +5,8 @@
 # If not running interactively, don't do anything
 [ -z "$PS1" ] && return
 
+export PATH="/usr/local/bin:$PATH"
+
 # don't put duplicate lines or lines starting with space in the history.
 # See bash(1) for more options
 HISTCONTROL=ignoreboth
@@ -38,7 +40,7 @@ alias cp="cp -i"                          # confirm before overwriting something
 alias df='df -h'                          # human-readable sizes
 alias free='free -m'                      # show sizes in MB
 alias more=less
-alias qconf='vim ~/.config/qtile/config.py' 
+
 #
 # # ex - archive extractor
 # # usage: ex <file>
@@ -67,7 +69,7 @@ ex ()
 # enable color support of ls and also add handy aliases
 if [ -x /opt/bin/dircolors ]; then
     test -r ~/.dircolors && eval "$(dircolors -b ~/.dircolors)" || eval "$(dircolors -b)"
-    alias ls='ls --color=auto'
+    alias ls='ls --color=auto -a'
     #alias dir='dir --color=auto'
     #alias vdir='vdir --color=auto'
 
@@ -78,8 +80,13 @@ fi
 
 # some more ls aliases
 alias ll='ls -alF'
-alias la='ls -A'
+alias la='ls -a'
 alias l='ls -CF'
+alias ls='ls --color=auto -a'
+alias qenv='source ~/.local/venvs/qtile/bin/activate'
+alias qcheck='~/.local/venvs/qtile/bin/qtile check'
+alias qconf='vim ~/.config/qtile/config.py'
+alias qvalid='( source ~/.local/venvs/qtile/bin/activate && qtile check )'
 
 # Alias definitions.
 # You may want to put all your additions into a separate file like

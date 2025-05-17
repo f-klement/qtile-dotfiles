@@ -1,5 +1,7 @@
 #!/usr/bin/env bash 
 
+export PATH="/usr/local/bin:$PATH"
+
 # Start notification daemon
 /usr/local/bin/dunst &  
 
@@ -32,5 +34,12 @@ export XCURSOR_SIZE="24"
 variety --resume &
 
 # screen-locker on suspend/idle (X11)
-xset s 300 -dpms       # start saver at 5 min, leave DPMS unchanged
-xss-lock -- i3lock --color 000000 --nofork --show-failed-attempts --ignore-empty-password &
+# ── blank after 5 min ─────────────────────────────────────────────────────
+xset s 300 -dpms
+
+# ── on suspend/idle, pick a random lock-image and run i3lock ──────────────
+# blank after 5 min
+xset s 300 -dpms
+# lock using our script
+xss-lock -- ~/.config/qtile/lock_with_random_bg.sh &
+
