@@ -11,6 +11,23 @@ eval "$(gnome-keyring-daemon --start --components=pkcs11,secrets,ssh,gpg)"
 # ── Policy-kit agent (package name: polkit-gnome) ────────────────────────
 /usr/libexec/polkit-gnome-authentication-agent-1 &
 
+# ── Set Session Variables and Theming ────────────────────────────────────────────────
+
+if [ ! -f /tmp/qtile_autostart_done ]; then
+  # Set XDG_CURRENT_DESKTOP
+  xprop -root -set _NET_WM_DESKTOP_ENVIRONMENT "Qtile"
+  touch /tmp/qtile_autostart_done
+fi
+
+if [ ! -f /tmp/qtile_darkmode_set ]; then
+  # For GTK applications
+  export GTK_THEME=Adwaita:dark 
+  export GTK_APPLICATION_PREFERENCES=prefer-dark-theme
+  # For Qt applications (Qt 5 and 6)
+  export QT_STYLE_OVERRIDE=adwaita-dark # 
+  export QT_QPA_PLATFORMTHEME="qt5ct" #
+  touch /tmp/qtile_darkmode_set
+fi
 
 # ── Tray apps ────────────────────────────────────────────────────────────
 nm-applet &
@@ -21,7 +38,7 @@ flatpak run org.flameshot.Flameshot &
 # ── Clipboard manager ────────────────────────────────────────────────────
 copyq &                       # dnf install copyq
 
-# ── Cursor + GTK theme + View Settings ───────────────────────────────────
+# ── Cursor + View Settings ───────────────────────────────────
 export GTK_THEME=Adwaita-dark
 export QTILE_CHECK_SKIP_STUBS=1
 export XCURSOR_THEME="Dracula"

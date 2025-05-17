@@ -184,7 +184,7 @@ def toggle_vol_text(qtile):
 def init_widgets():
     return [
         # ---- LEFT cluster ---------------------------------------------------
-        widget.Spacer(length=1),  # tiny padding
+        widget.Spacer(length=4),  # tiny padding
         widget.GroupBox(
             padding_x=0,
             margin_x=1,
@@ -247,14 +247,14 @@ def init_widgets():
             countdown_format="⏻ ({}s)",
             padding=6,
         ),
-        widget.Spacer(length=1),
+        widget.Spacer(length=4),
     ]
 
 # For adding transparency to your bar, add (background="#00000000") to the "Screen" line(s)
 # For ex: Screen(top=bar.Bar(widgets=init_widgets_screen2(), background="#00000000", size=24)),
 
 screens = [
-    Screen(top=bar.Bar(init_widgets(), 28, opacity=0.0, margin=[0, 6, 0, 6])),
+    Screen(top=bar.Bar(init_widgets(), 28, opacity=0.0, margin=[0, 0, 0, 0])),
 ]
 
 # drag floating window with Mod + left-click
