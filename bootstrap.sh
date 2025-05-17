@@ -44,10 +44,10 @@ sudo -iu "$(logname)" flatpak remote-add --if-not-exists \
 ### 2. QTile X11 ──────────────────────────────────────────────────────────────
 dnf -y install \
   python3 python3-devel python3.12-devel python3-gobject python3-pip libffi-devel cairo cairo-devel \
-  pango pango-devel gobject-introspection-devel libXScrnSaver-devel \
+  pango pango-devel gobject-introspection-devel libXScrnSaver-devel spice-vdagent \
   libxkbcommon libxkbcommon-devel xcb-util-keysyms-devel xcb-util-wm-devel \
   xcb-util-devel libXcursor-devel libXinerama-devel python3-pyopengl \
-  jetbrains-mono-nl-fonts fontawesome-fonts
+  jetbrains-mono-nl-fonts fontawesome-fonts open-vm-tools open-vm-tools-desktop
 
 # create venv & install qtile as the target user
 sudo -iu "$TARGET_USER" bash <<EOF
@@ -73,7 +73,7 @@ EOF
 
 ### 3. Runtime packages ─────────────────────────────────────────────────────
 dnf -y install \
-  dmenu \
+  btop \
   gnome-keyring-pam \
   polkit-gnome \
   copyq \
@@ -174,6 +174,13 @@ curl -L https://github.com/dracula/gtk/releases/latest/download/Dracula-cursors.
 ### 5.6 misc utils from source ───────────────────────────────────────────────
 
 curl -sfL https://direnv.net/install.sh | bash
+
+cd cd /usr/local/src
+git clone https://github.com/lxde/lxappearance.git
+cd lxappearance
+./autogen.sh --prefix=/usr/local
+./configure --prefix=/usr/local
+make & make install
 
 ### 6. Build-time deps for picom ─────────────────────────────────────────────
 ### 1. Dependencies ---------------------------------------------------
