@@ -9,8 +9,7 @@ over from-source builds where they exist. That makes it far less work to
 lift onto EL9/10.
 
 Containers are rootless podman driven by the docker CLI via DOCKER_HOST;
-there is no docker daemon. See `archive/docs/` for the reasoning behind the
-session and memory hardening in section 9.5.
+there is no docker daemon.
 
 deploy configs with gnu stow
 the setup file will ask for the root password
