@@ -1,30 +1,19 @@
 #!/usr/bin/env bash
 #
-# install.sh ─ one-shot bootstrap for a fresh **Rocky / RHEL 8** workstation
-# qtile-x11, xcompmgr compositor, WM utilities, python3.12, extra repos, and the everyday
-# applications, preferring upstream RPM repos over snap/flatpak where one exists
-# (snap and flatpak both went badly stale in practice: the codium snap sat 7
-# months behind, the Brave flatpak accumulated two unused runtime versions).
-#
-# Containers: rootless podman with NATIVE kernel overlay, driven by the docker
-# CLI via DOCKER_HOST. There is no docker daemon - see install_podman for why the
-# two cannot coexist on EL8.
-#
-# Section 9.5 carries the session/memory hardening from the 2026-09-07 freeze
-# investigation; see archive/docs/ for the reasoning behind each item.
-#
-# snapd is still installed below but nothing uses it any more - safe to drop if
-# you have no snap-only tooling left.
+# One-shot bootstrap for a fresh Rocky / RHEL 8 workstation: qtile-x11,
+# fastcompmgr/xcompmgr, python3.12, extra repos, everyday apps. Prefers upstream
+# RPM repos over snap/flatpak. Containers: rootless podman via the docker CLI
+# (DOCKER_HOST), no docker daemon. Session/memory hardening in section 9.5.
 
 set -euo pipefail
 
-### 0. Sanity check ─────────────────────────────────────────────────────────────
+### 0. Sanity check
 if [[ $EUID -ne 0 ]]; then
   echo "Run this script with sudo or as root." >&2
   exit 1
 fi
 
-### 0. Variables & helpers ─────────────────────────────────────────────────────
+### 0. Variables & helpers
 TARGET_USER="$(logname)"
 QTILE_VENV="/home/$TARGET_USER/.local/venvs/qtile"
 export PATH="/usr/local/bin:$PATH"
@@ -39,7 +28,7 @@ skip_if_installed() {
   fi
 }
 
-# --- portability layer --------------------------------------------------------
+# portability layer
 # Most of what follows is EL8-specific only because EL8 is old. Rather than
 # hardcoding those workarounds, detect the platform and probe for capabilities,
 # so this script degrades to something much shorter on EL9/10 or Fedora.
@@ -70,7 +59,7 @@ pkg_or_build() {
   "$@"
 }
 
-# --- capability probes --------------------------------------------------------
+# capability probes
 # zswap: pick the densest zpool and best compressor the RUNNING kernel actually
 # supports, instead of assuming. Getting this wrong fails SILENTLY - the kernel
 # logs "zpool X not available, using default zbud" and carries on degraded.
@@ -113,7 +102,7 @@ if ! grep -q '^defaultyes=True' /etc/dnf/dnf.conf; then
   sed -i '/^\[main\]/a defaultyes=True' /etc/dnf/dnf.conf
 fi
 
-### 1. Repos & core packages ──────────────────────────────────────────────────
+### 1. Repos & core packages
 dnf -y install epel-release flatpak git
 dnf -y config-manager --set-enabled "$CRB_REPO"
 dnf -y install rpmfusion-free-release
@@ -127,11 +116,7 @@ dnf -y groupupdate sound-and-video
 
 dnf -y install snapd stow #epel-next-release
 dnf -y install papirus-icon-theme dejavu-sans-fonts
-#systemctl enable --now snapd.socket
 
-#[[ -L /snap ]] || ln -s /var/lib/snapd/snap /snap && sleep 10
-#snap refresh
-#snap install core direnv
 
 dnf -y clean all
 dnf -y makecache
@@ -163,7 +148,7 @@ dnf -y config-manager --add-repo https://brave-browser-rpm-release.s3.brave.com/
 rpmkeys --import https://brave-browser-rpm-release.s3.brave.com/brave-core.asc || true
 dnf -y install brave-browser
 
-### 2. QTile X11 (per-user venv under Python 3.12) ───────────────────────────────
+### 2. QTile X11 (per-user venv under Python 3.12)
 dnf -y install \
   python3.12 python3.12-devel polkit-kde python3-devel python3-gobject python3-pip \
   libffi-devel cairo cairo-devel pango pango-devel gobject-introspection-devel \
@@ -195,14 +180,14 @@ Type=Application
 Keywords=wm;tiling
 EOF
 
-### 3. Runtime packages, utilities & placeholder compositor ────────────────────────────────
+### 3. Runtime packages, utilities & fallback compositor
 dnf -y install \
   btop gnome-keyring-pam copyq network-manager-applet \
   redshift pulseaudio-utils pavucontrol bluez bluez-libs \
-  python3-dbus acpid kitty vlc xcompmgr powerline-fonts 
+  python3-dbus acpid kitty vlc xcompmgr powerline-fonts   # xcompmgr = compositor fallback (fastcompmgr built in section 6 is preferred)
 
 
-### 4. Flatpak GUI apps ───────────────────────────────────────────────────────
+### 4. Flatpak GUI apps
 su - "$TARGET_USER" -c '
 flatpak remote-add --user --if-not-exists flathub \
   https://dl.flathub.org/repo/flathub.flatpakrepo
@@ -216,7 +201,7 @@ flatpak install --user -y flathub \
   md.obsidian.Obsidian
 '
 
-### 5. Builds from source ──────────────────────────────────────────────────────
+### 5. Builds from source
 # 5.0 i3-lock
 install_i3lock() {
   set -e
@@ -378,6 +363,26 @@ install_lxappearance() {
 }
 pkg_or_build lxappearance lxappearance install_lxappearance
 
+### 6. fastcompmgr (X11 compositor)
+# xcompmgr fork with damage-tracked repaints, actively maintained. Not packaged
+# for EL8, so build from source. On this Xvnc software-RENDER session it blends
+# translucent windows WITHOUT the 16px banding picom produced (picom was dropped
+# entirely). autostart_x11.sh prefers fastcompmgr and falls back to the packaged
+# xcompmgr if this binary is ever absent.
+install_fastcompmgr() {
+  dnf -y install gcc make pkgconf-pkg-config \
+    libX11-devel libXcomposite-devel libXdamage-devel libXfixes-devel libXrender-devel
+  [ -d /tmp/fastcompmgr ] && rm -rf /tmp/fastcompmgr
+  git clone https://github.com/tycho-kirchner/fastcompmgr.git /tmp/fastcompmgr
+  cd /tmp/fastcompmgr
+  git checkout v0.6.1
+  # EL8 glibc (<2.34) still keeps dlopen in libdl and libX11 needs it -> add -ldl,
+  # otherwise the link fails with "undefined reference to dlopen".
+  make LIBS="$(pkg-config --libs x11 xcomposite xfixes xdamage xrender) -lm -ldl"
+  make install PREFIX=/usr/local
+}
+pkg_or_build fastcompmgr fastcompmgr install_fastcompmgr
+
 
 # Wallpapers
 [[ -d /home/$TARGET_USER/Pictures/wallpapers ]] || \
@@ -385,7 +390,7 @@ pkg_or_build lxappearance lxappearance install_lxappearance
 
 ### USER SPACE TOOLS ###
 
-### 7. Node & Bun 4 TS and UV 4 Python --------------------------------
+### 7. Node & Bun 4 TS and UV 4 Python
 
 install_nvm() {
   dnf install -y libatomic
@@ -419,7 +424,7 @@ EOF
 }
 skip_if_installed uv install_uv
 
-### 8.CLIs & TUIs ---------------------------------------------
+### 8.CLIs & TUIs
 
 # fzf
 install_fzf() {
@@ -526,7 +531,7 @@ EOF
 }
 skip_if_installed brew install_brew
 
-### 9. System Tools & API Testing ──────────────────────────────────────────────
+### 9. System Tools & API Testing
 
 # Bruno for apis
 
@@ -572,12 +577,12 @@ install_gdu() {
 }
 pkg_or_build gdu gdu install_gdu
 
-### 9.5 Session & memory hardening ─────────────────────────────────────────────
+### 9.5 Session & memory hardening
 # Everything below came out of diagnosing a session that froze under load while
 # a colleague's stock GNOME on identical hardware did not. See
 # archive/docs/2026-09-07-session-stability-investigation.md for the full write-up.
 
-# --- 9.5.1 gnome-session: stop launching a full GNOME under qtile -------------
+# 9.5.1 gnome-session: stop launching a full GNOME under qtile
 # The session runs gnome-session-binary as its anchor (a watchdog monitors that
 # process), which by default pulls in 19 gsd-* daemons plus tracker AND then
 # qtile on top - strictly heavier than the stock GNOME being compared against.
@@ -601,7 +606,7 @@ chown "$TARGET_USER:$TARGET_USER" "/home/$TARGET_USER/.config/gnome-session/sess
 # spam), Clipboard (copyq already does this), and Housekeeping (NOTE: this loses
 # the low-disk-space warning).
 
-# --- 9.5.2 disable tracker and other unused autostarts ------------------------
+# 9.5.2 disable tracker and other unused autostarts
 # tracker indexes $HOME on a dev box and tracker-extract crashed 25+ times in a
 # single afternoon here. It is BOTH an XDG autostart AND a systemd user unit AND
 # D-Bus activated, so all three paths need closing.
@@ -657,7 +662,7 @@ sudo -iu "$TARGET_USER" bash -c '
   gsettings set org.freedesktop.Tracker.Miner.Files crawling-interval -2
 ' || true
 
-# --- 9.5.3 writeback latency --------------------------------------------------
+# 9.5.3 writeback latency
 # tuned's virtual-guest profile sets dirty_ratio=30, which on 7.6 GB allows
 # ~2.3 GB of dirty pages to queue before throttling, then flushes to a slow
 # virtual disk - a system-wide stall on every docker build / npm install.
@@ -673,7 +678,7 @@ vm.dirty_background_bytes = 67108864
 SYSCTL
 sysctl -p /etc/sysctl.d/99-desktop-latency.conf || true
 
-# --- 9.5.4 zswap ---------------------------------------------------------------
+# 9.5.4 zswap
 # CONFIG_Z3FOLD is NOT set on the EL8 kernel, so zswap.zpool=z3fold silently
 # falls back to zbud (2 pages per zpage, ~1.7:1) - it reserves 20% of RAM and
 # gives little back. CONFIG_ZSMALLOC=y is present and packs far denser.
@@ -690,7 +695,7 @@ if command -v grubby >/dev/null; then
   echo "zswap staged (needs reboot). Verify: cat /sys/module/zswap/parameters/zpool"
 fi
 
-# --- 9.5.5 Brave GPU flags -----------------------------------------------------
+# 9.5.5 Brave GPU flags
 # No 3D on this VMware guest: Brave probes vaapi -> zink -> DRM/KMS and fails at
 # each, emitting ~40 DRM_IOCTL_MODE_CREATE_DUMB errors per launch. The flatpak
 # hid this because Brave auto-picked --disable-gpu-compositing in the sandbox.
@@ -716,7 +721,7 @@ fi
 # lives in bin/starting-qtile.sh, and DOCKER_HOST / DOCKER_BUILDKIT=0 in .zshrc -
 # both are stowed from this repo, so they need nothing here.
 
-### 9.6 Theming - Rosé Pine, dark, across toolkits ────────────────────────────
+### 9.6 Theming - Rosé Pine, dark, across toolkits
 # How theming reaches each toolkit in this session (gnome-session + qtile):
 #   GTK2/3 + Chromium/Electron : gsd-xsettings (kept alive in 9.5.1) broadcasts
 #       gsettings org.gnome.desktop.interface as XSETTINGS. The theme name MUST be

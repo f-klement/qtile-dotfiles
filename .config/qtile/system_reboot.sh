@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 # Reboot action for the qtile power (⏻) widget.
-# Exists as a file for the same reason system_update.sh does: the title
-# escapes and error handling do not survive the quoting of an inline sh -c.
 
 set -u
 

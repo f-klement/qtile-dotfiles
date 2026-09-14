@@ -7,11 +7,9 @@
 set -u
 
 export DEBIAN_FRONTEND=noninteractive
-export HOMEBREW_NO_ENV_HINTS=1   # keeps the output readable in the popup terminal
+export HOMEBREW_NO_ENV_HINTS=1
 
-# Window title via OSC 0. Deliberately not kitty's --title, which pins the
-# title and ignores the app's own updates - here it should track the phase,
-# so a bare password prompt always names what it is about to authorise.
+# Window title via OSC 0 (tracks the phase, so the password prompt names its step).
 title() { printf '\033]0;%s\007' "$1"; }
 trap 'title "System Update"' EXIT
 
@@ -50,9 +48,7 @@ title 'System Update 3/4 - snap refresh'
 echo; echo '--- 3/4: Updating Snap packages ---'
 sudo -n snap refresh
 
-# Homebrew refuses to run as root, so this one stays unprivileged.
-# --yes: brew 6 asks for confirmation whenever an upgrade pulls in
-# dependencies that were not named on the command line (install.rb, ask_prompt_needed?).
+# Homebrew refuses root; --yes auto-confirms dependency upgrades.
 title 'System Update 4/4 - brew upgrade'
 echo; echo '--- 4/4: Updating Homebrew packages ---'
 /home/linuxbrew/.linuxbrew/bin/brew update

@@ -1,100 +1,59 @@
 #!/usr/bin/env bash 
 
 export PATH="/usr/local/bin:$PATH"
-#xrandr --output Virtual-1 --mode 1920x1200 --rate 60
 
-# Start notification daemon
-/usr/local/bin/dunst &  
+/usr/local/bin/dunst &
 
-# ── Keyring (run *before* any app that needs secrets) ────────────────────
-# HANDLED IN SESSION AUTOSTART NOW
-# eval "$(gnome-keyring-daemon --start --components=pkcs11,secrets,ssh,gpg)"
-# export SSH_AUTH_SOCK
-
-# # Sync the variables to the global D-Bus and Systemd environment
-# dbus-update-activation-environment --systemd GNOME_KEYRING_CONTROL SSH_AUTH_SOCK
-# # ── Policy-kit agent (package name: polkit-gnome) ────────────────────────
-# KDE Polkit agent (works with Qtile)
+# KDE polkit agent (works with qtile)
 if [ -x /usr/libexec/polkit-kde-authentication-agent-1 ]; then
     /usr/libexec/polkit-kde-authentication-agent-1 &
 fi
-# ── Theming (Rose Pine, dark) ─────────────────────────────────────────────
-# gsd-xsettings survives the GNOME purge on purpose: it turns these gsettings
-# into XSETTINGS, which every GTK2/GTK3/GTK4/Chromium/Electron app on the display
-# reads - including apps launched later from rofi that never see this script's
-# environment. gsettings persist in dconf, re-set here so a reset can't undo it.
-# NOTE: the theme name must be a directory name (~/.themes/<name>). The
-# "Adwaita:dark" form is GTK_THEME-env syntax only; via XSETTINGS it resolves to
-# no theme at all and GTK silently falls back to LIGHT Adwaita - the old bug.
+
+# Theming (Rosé Pine, dark). gsd-xsettings turns these gsettings into XSETTINGS
+# for every GTK/Chromium/Electron app, incl. ones launched later from rofi.
+# NOTE: gtk-theme must be a ~/.themes dir name; "Adwaita:dark" resolves to LIGHT.
 gsettings set org.gnome.desktop.interface gtk-theme        'rose-pine-gtk'
 gsettings set org.gnome.desktop.interface icon-theme       'Papirus-Dark'
 gsettings set org.gnome.desktop.interface cursor-theme     'BreezeX-RosePine-Linux'
 gsettings set org.gnome.desktop.interface cursor-size      24
 gsettings set org.gnome.desktop.interface font-name        'Cantarell 11'
 gsettings set org.gnome.desktop.interface monospace-font-name 'JetBrains Mono Nerd Font 10'
-# root-window cursor (apps not going through XSETTINGS/Xcursor env)
 xsetroot -cursor_name left_ptr
 
-# Toolkit env (QT_QPA_PLATFORMTHEME, XCURSOR_*) lives in bin/starting-qtile.sh so
-# that everything qtile spawns inherits it, not just the apps started below.
+# Toolkit env lives in bin/starting-qtile.sh so all spawned apps inherit it.
 xprop -root -set _NET_WM_DESKTOP_ENVIRONMENT "Qtile"
 export XDG_CURRENT_DESKTOP=Qtile
 export DESKTOP_SESSION=qtile
 
-# ── Tray apps ────────────────────────────────────────────────────────────
+# Tray
 nm-applet &
-#blueman-applet &              # requires: sudo dnf install blueman (not to be found on these corpo distros)
-
-# screenshots: NO resident flameshot daemon - it caches the screen geometry
-# and xrdp changes it per connection. Print / Shift+Print in config.py run
-# ~/bin/screenshot.sh, which always starts a fresh process.
-# ── Clipboard manager ────────────────────────────────────────────────────
-copyq &                       # dnf install copyq
-
-# ── Cursor + View Settings ───────────────────────────────────
+copyq &
 export QTILE_CHECK_SKIP_STUBS=1
 
-# compositor (X11). xcompmgr, NOT picom: on this Xvnc software-RENDER session
-# picom's blend of translucent windows produces intermittent 16px dark banding
-# (picom is no longer installed). xcompmgr blends
-# the same _NET_WM_WINDOW_OPACITY correctly here. Per-window opacity (90 focused
-# / 85 unfocused) is set by qtile hooks in config.py, since xcompmgr has no
-# opacity rules of its own. -n = no shadows/fading, just compositing.
-xcompmgr -n &
+# Compositor (X11). NOT picom (it stripes translucent windows on this Xvnc).
+# fastcompmgr preferred, xcompmgr -n fallback; opacity is driven by config.py.
+if command -v fastcompmgr >/dev/null 2>&1; then
+    fastcompmgr &
+else
+    xcompmgr -n &
+fi
 
-# wallpaper service -- bin/wallpaper.sh picks a random image (never the current
-# one) and caches the file list in $XDG_RUNTIME_DIR, so the 5-minute loop does
-# not re-walk the tree each time. The paint-brush button in the bar runs the
-# same script on demand.
+# Wallpaper: random on start, then a fresh one every 5 min (see bin/wallpaper.sh).
 ~/bin/wallpaper.sh
-
-# every 300 seconds (5m), pick & set a new one
 (
   while sleep 300; do
     ~/bin/wallpaper.sh
   done
 ) &
 
-# screen-locker on suspend/idle (X11)
-# ── blank after 5 min ─────────────────────────────────────────────────────
+# Blank after 5 min; lock on idle/suspend.
 xset s 300 -dpms
-
-# ── on suspend/idle, pick a random lock-image and run i3lock ──────────────
-# blank after 5 min
-xset s 300 -dpms
-# lock using our script
-# NOTE: previously wrapped in `dbus-run-session`, which started a SECOND session
-# bus just for the locker -- xss-lock then sat on a different bus than the rest
-# of the session, so idle/inhibit signalling between apps and the locker could
-# not work. Run it on the session's existing bus.
+# NOTE: run xss-lock on the session's existing bus, not via dbus-run-session,
+# or idle/inhibit signalling lands on a different bus than the rest of the session.
 xss-lock -- ~/.config/qtile/lock_with_random_bg_x11.sh &
 
-# ── lauch user applications ──────────────
-# flatpak
-# Prefer native Brave (RPM) once installed; flatpak is the fallback.
+# User apps
 if command -v brave-browser >/dev/null 2>&1; then brave-browser & else flatpak run com.brave.Browser & fi
 flatpak run md.obsidian.Obsidian &
-
-# native apps & snaps
 codium &
 nautilus &

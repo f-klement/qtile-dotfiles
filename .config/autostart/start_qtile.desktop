@@ -1,4 +1,3 @@
-# ~/.config/autostart/start_qtile.desktop
 [Desktop Entry]
 Type=Application
 Exec=/home/admin/bin/starting-qtile.sh

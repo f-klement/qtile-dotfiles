@@ -1,28 +1,3 @@
-# Copyright (c) 2010 Aldo Cortesi
-# Copyright (c) 2010, 2014 dequis
-# Copyright (c) 2012 Randall Ma
-# Copyright (c) 2012-2014 Tycho Andersen
-# Copyright (c) 2012 Craig Barnes
-# Copyright (c) 2013 horsik
-# Copyright (c) 2013 Tao Sauvage
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
 
 import os
 import shutil
@@ -44,19 +19,9 @@ editor  = "codium"
 files = "nautilus"
 notes = "flatpak run md.obsidian.Obsidian"
 
-# ── helpers ───────────────────────────────────────────────────────────────
+# helpers
 def _physical_screen_order(qtile):
-    """qtile numbers screens in RandR output order, which is NOT the order they
-    sit in physically. On this machine:
-
-        qtile 0 = 1920x1080 @ x=0     small built-in
-        qtile 1 = 1920x1200 @ x=3120  landscape  (rightmost!)
-        qtile 2 = 1200x1920 @ x=1920  portrait   (middle)
-
-    So walking 0 -> 1 -> 2 jumps small -> right -> middle, which is why the
-    traversal keys felt wrong. Sorting by x (then y) gives the order you
-    actually see: small -> portrait -> landscape.
-    """
+    """Screen order by physical x, not RandR order (scrambled on this host)."""
     return sorted(range(len(qtile.screens)),
                   key=lambda i: (qtile.screens[i].x, qtile.screens[i].y))
 
@@ -75,12 +40,7 @@ def _relative_screen(qtile, direction):
 
 @lazy.function
 def goto_group(qtile, name):
-    """Switch to a group ON ITS PINNED SCREEN.
-
-    lazy.group[name].toscreen() shows the group on whatever screen is currently
-    focused, which drags a pinned group off its monitor and swaps whatever was
-    there onto the pinned group's screen. That silently destroys the pinning.
-    """
+    """Switch to a group on its pinned screen (plain toscreen breaks pinning)."""
     target = GROUP_SCREEN.get(name)
     if target is not None and target < len(qtile.screens):
         qtile.groups_map[name].toscreen(target)
@@ -91,14 +51,7 @@ def goto_group(qtile, name):
 
 @lazy.function
 def move_window_to_group(qtile, name, follow=True):
-    """Move the focused window to a group, showing that group on its pinned
-    screen rather than yanking it to the current one.
-
-    lazy.window.togroup(name, switch_group=True) has the same defect as above:
-    it moves the window correctly but then pulls the group onto the current
-    screen, so the workspaces swap monitors and it looks like the command was
-    ignored.
-    """
+    """Move focused window to a group, keeping that group on its pinned screen."""
     win = qtile.current_window
     if win is None:
         return
@@ -127,34 +80,20 @@ def move_window_to_screen(qtile, direction="next"):
         qtile.current_window.togroup(target_group.name)
         qtile.focus_screen(target_screen_index)
 
-# ── helpers ───────────────────────────────────────────────────────────────
-
 keys = [ 
-    # A list of available commands that can be bound to keys can be found
-    # at https://docs.qtile.org/en/latest/manual/config/lazy.html
-    # Switch between windows
     Key([mod], "Left",  lazy.layout.left(),  desc="Focus left"),
     Key([mod], "Right", lazy.layout.right(), desc="Focus right"),
     Key([mod], "Up",    lazy.layout.up(),    desc="Focus up"),
     Key([mod], "Down",  lazy.layout.down(),  desc="Focus down"),
     Key([mod], "t", lazy.layout.next(), desc="Move window focus to other window"),
-    # Move windows between left/right columns or move up/down in current stack.
-    # Moving out of range in Columns layout will create new column.
     Key([mod, "shift"], "Left", lazy.layout.shuffle_left(), desc="Move window to the left"),
     Key([mod, "shift"], "Right", lazy.layout.shuffle_right(), desc="Move window to the right"),
     Key([mod, "shift"], "Down", lazy.layout.shuffle_down(), desc="Move window down"),
     Key([mod, "shift"], "Up", lazy.layout.shuffle_up(), desc="Move window up"),
-    # Grow windows. If current window is on the edge of screen and direction
-    # will be to screen edge - window would shrink.
     Key([mod, "control"], "Left", lazy.layout.grow_left(), desc="Grow window to the left"),
     Key([mod, "control"], "Right", lazy.layout.grow_right(), desc="Grow window to the right"),
     Key([mod, "control"], "Down", lazy.layout.grow_down(), desc="Grow window down"),
     Key([mod, "control"], "Up", lazy.layout.grow_up(), desc="Grow window up"),
-    # --- Move *floating* window 40 px at a time (no conflict with mod-shift keys) ---
-    # Key([mod, "mod1"], "Left",  lazy.window.move_floating(-40, 0),  desc="Nudge floating window left"),
-    # Key([mod, "mod1"], "Right", lazy.window.move_floating( 40, 0),  desc="Nudge floating window right"),
-    # Key([mod, "mod1"], "Up",    lazy.window.move_floating( 0, -40), desc="Nudge floating window up"),
-    # Key([mod, "mod1"], "Down",  lazy.window.move_floating( 0, 40),  desc="Nudge floating window down"),    
     Key([mod], "n", lazy.layout.normalize(), desc="Reset all window sizes"),
      # new launch shortcuts
     Key([mod], "b", lazy.spawn(browser), desc="Launch browser"),
@@ -167,10 +106,6 @@ keys = [
     Key([mod, "mod1"], "s", lazy.spawn(os.path.expanduser("~/bin/screenshot.sh") + " gui"), desc="Screenshot: select region (for keyboards without Print)"),
     Key(["shift"], "Print", lazy.spawn(os.path.expanduser("~/bin/screenshot.sh") + " clip"), desc="Screenshot: full screen to clipboard"),
     Key(["control"], "Print", lazy.spawn(os.path.expanduser("~/bin/screenshot.sh") + " full"), desc="Screenshot: full screen to ~/Pictures"),
-    # Toggle between split and unsplit sides of stack.
-    # Split = all windows displayed
-    # Unsplit = 1 window displayed, like Max layout, but still with
-    # multiple stack panes
     Key(
         [mod, "shift"],
         "Return",
@@ -178,7 +113,6 @@ keys = [
         desc="Toggle between split and unsplit sides of stack",
     ),
     Key([mod], "q", lazy.spawn(terminal), desc="Launch terminal"),
-    # Toggle between different layouts as defined below
     Key([mod, "mod1"], "Tab", lazy.next_layout(), desc="Toggle between layouts"),
     Key([mod,"mod1"], "x", lazy.window.kill(), desc="Kill focused window"),
     Key(
@@ -199,9 +133,6 @@ keys = [
     Key([mod, "mod1"], "Right", move_window_to_screen(direction="next"), desc="Move window to next monitor"),
 ]
 
-# Add key bindings to switch VTs in Wayland.
-# We can't check qtile.core.name in default config as it is loaded before qtile is started
-# We therefore defer the check until the key binding is run by using .when(func=...)
 for vt in range(1, 8):
     keys.append(
         Key(
@@ -212,55 +143,8 @@ for vt in range(1, 8):
         )
     )
 
-# groups = [
-#    Group(name="1", screen_affinity=0),
-#    Group(name="2", screen_affinity=1),
-#    Group(name="3", screen_affinity=0),
-#    Group(name="4", screen_affinity=1),
-#    Group(name="5", screen_affinity=0),
-#    Group(name="6", screen_affinity=1),
-#    Group(name="7", screen_affinity=0),
-#    Group(name="8", screen_affinity=1),
-#    Group(name="9", screen_affinity=0),
-# ]
-
-# def go_to_group(name: str):
-#    def _inner(qtile):
-#        if len(qtile.screens) == 1:
-#            qtile.groups_map[name].toscreen()
-#            return
-
-#        if name in '13579':
-#            qtile.focus_screen(0)
-#            qtile.groups_map[name].toscreen()
-#        else:
-#            qtile.focus_screen(1)
-#            qtile.groups_map[name].toscreen()
-#    return _inner
-
-# for i in groups:
-#    keys.append(
-#        Key(
-#            [mod, "shift"],
-#            i.name,
-#            lazy.window.togroup(i.name, switch_group=True),
-#            desc=f"Move window to group {i.name}",
-#        )
-#    )
-
-# for i in groups:
-#    keys.append(
-#        Key(
-#            [mod],
-#            i.name,
-#            lazy.function(go_to_group(i.name)),
-#            desc=f"Switch to group {i.name}",
-#        )
-#    )
-
-# ── screen roles ──────────────────────────────────────────────────────────
-# Resolved from xrandr at config load. xrandr lists outputs in the same order
-# qtile numbers its screens, so index i here == qtile screen i.
+# screen roles
+# Resolved from xrandr at load; index here == qtile screen index.
 def _detect_screen_roles():
     import re
     roles = {"small": 0, "portrait": 0, "landscape": 0}
@@ -292,9 +176,7 @@ GROUP_SCREEN = {
     "6": SCREEN["small"],       # obsidian
 }
 
-# Where apps spawn. wm_class values taken from the running windows, NOT from the
-# .desktop StartupWMClass - codium's desktop file claims "VSCodium" but the real
-# runtime class is "codium", so the desktop hint would never have matched.
+# Spawn rules. wm_class from the RUNNING window, not .desktop (codium reports "codium").
 GROUP_MATCHES = {
     "1": [Match(wm_class="brave-browser")],
     "2": [Match(wm_class="codium")],
@@ -314,28 +196,21 @@ for _name in "123456789":
 for i in groups:
     keys.extend(
         [
-            # mod + group number = switch to group
             Key(
                 [mod],
                 i.name,
                 goto_group(i.name),
                 desc=f"Switch to group {i.name} (on its pinned screen)",
             ),
-            # mod + shift + group number = switch to & move focused window to group
             Key(
                 [mod, "shift"],
                 i.name,
                 move_window_to_group(i.name),
                 desc=f"Move focused window to group {i.name} (keeps pinning)",
              ),
-#             # Or, use below if you prefer not to switch to that group.
-#             # # mod + shift + group number = move focused window to group
-#             # Key([mod, "shift"], i.name, lazy.window.togroup(i.name),
-#             #     desc="move focused window to group {}".format(i.name)),
         ]
     )
 
-# Use renamed color module
 doom_colors = color_mod.RosePine
 layout_theme = {"border_width": 1,
                 "margin": 0,
@@ -348,17 +223,6 @@ layouts = [
     layout.Columns(border_focus_stack=["#d75f5f", "#8f3d3d"], **layout_theme),
     layout.Spiral(main_pane="left", clockwise=True, **layout_theme),
     layout.Max(**layout_theme),
-    # Try more layouts by unleashing below layouts.
-    # layout.Stack(num_stacks=2),
-    # layout.Bsp(),
-    # layout.Matrix(),
-    # layout.MonadTall(),
-    # layout.MonadWide(),
-    # layout.RatioTile(),
-    # layout.Tile(),
-    # layout.TreeTab(),
-    # layout.VerticalTile(),
-    # layout.Zoomy(),
 ]
 
 widget_defaults = dict(
@@ -370,8 +234,7 @@ widget_defaults = dict(
 
 extension_defaults = widget_defaults.copy()
 
-# ── helpers ───────────────────────────────────────────────────────────────
-
+# helpers
 @lazy.function
 def toggle_vol_text(qtile):
     w = qtile.widgets_map["pulsevolume"]
@@ -391,7 +254,6 @@ def power_menu(qtile):
         "elif [ \"$code\" -eq 1 ]; then systemctl reboot; fi'"
     )
 
-# Detect number of connected monitors via xrandr
 
 def get_monitor_count():
     output = subprocess.check_output(["xrandr", "--query"]).decode()
@@ -399,11 +261,9 @@ def get_monitor_count():
 
 monitor_count = get_monitor_count()
 
-# ──────────────────────────────────────────────────────────────────────────
-
 def init_widgets(include_systray=True, include_updates=True):
     widgets = [
-        # ---- LEFT cluster ---------------------------------------------------
+        # LEFT cluster
         widget.Spacer(length=4),  # tiny padding
         widget.GroupBox(
             padding_x=0,
@@ -421,7 +281,7 @@ def init_widgets(include_systray=True, include_updates=True):
         ),
         widget.Prompt(name="prompt", prompt="Run: ", padding=5, foreground = doom_colors[1]),
         widget.Spacer(length=6),
-        # ---- centre ---------------------------------------------------------
+        # centre
         widget.Spacer(length=bar.STRETCH),
         widget.Clock(
             format="%H:%M   %d-%m-%Y",
@@ -430,9 +290,8 @@ def init_widgets(include_systray=True, include_updates=True):
         ),
         widget.Spacer(length=bar.STRETCH),
 
-        # ---- RIGHT cluster --------------------------------------------------
-        # Wallpaper switcher: same script the autostart loop uses, so a click
-        # just advances to a random *other* image from ~/Pictures/wallpapers.
+        # RIGHT cluster
+        # Wallpaper switcher (same script as the autostart loop).
         widget.TextBox(
             text="\U000f00e3",        # Nerd Font paint brush (nf-md-brush)
             fontsize=15,
@@ -452,8 +311,6 @@ def init_widgets(include_systray=True, include_updates=True):
             },
             foreground = doom_colors[5],
         ),
-        #xwidget.Bluetooth(),                 # from qtile-extras
-        #widget.Battery(format="  {percent:2.0%}", low_percentage=0.15),
         widget.PulseVolume(
             name="pulsevolume",
             foreground = doom_colors[7],
@@ -473,10 +330,7 @@ def init_widgets(include_systray=True, include_updates=True):
             update_interval=5,
         ),
         widget.CPU(foreground = doom_colors[4],format=" {load_percent:>3}%", update_interval=5),
-        # Screenshot launcher. Replaces flameshot's tray icon: that icon is the
-        # resident daemon, which caches the screen geometry and drifts under
-        # xrdp (see bin/screenshot.sh). This goes through the same wrapper as
-        # the Print keys, so every capture starts a fresh process.
+        # Screenshot launcher (fresh process per capture; see bin/screenshot.sh).
         widget.TextBox(
             text="\U000f0100",        # Nerd Font camera (nf-md-camera)
             fontsize=15,
@@ -504,9 +358,7 @@ def init_widgets(include_systray=True, include_updates=True):
             colour_no_updates=doom_colors[9],   # Grey
             update_interval=1800, # Check every 30 mins
             mouse_callbacks={
-                # Left-click runs the full update chain in a new terminal.
-                # The commands live in system_update.sh so the sudo keep-alive
-                # loop does not have to survive shell quoting inside lazy.spawn.
+                # Left-click runs system_update.sh in a terminal.
                 "Button1": lazy.spawn([
                     terminal,
                     "-e",
@@ -523,8 +375,7 @@ def init_widgets(include_systray=True, include_updates=True):
             padding=6,
             fontsize=16,
             mouse_callbacks={
-                 # The title of the spawned window names the action, so the
-                 # password prompt is never anonymous. See system_reboot.sh.
+                 # See system_reboot.sh.
                  "Button1": lazy.spawn([
                      terminal,
                      "-e",
@@ -534,25 +385,20 @@ def init_widgets(include_systray=True, include_updates=True):
     ])
     return widgets
 
-# For adding transparency to your bar, add (background="#00000000") to the "Screen" line(s)
-# For ex: Screen(top=bar.Bar(widgets=init_widgets_screen2(), background="#00000000", size=24)),
 
-# Create one Screen/bar per detected monitor
 screens = [
     Screen(top=bar.Bar(init_widgets(include_systray=(i == 0), include_updates=(i == 0)), 28, opacity=0.70))
     for i in range(monitor_count)
 ]
 
-# drag floating window with Mod + left-click
 Drag([mod], "Button1", lazy.window.set_position_floating(),
      start=lazy.window.get_position()),
 
-# Drag floating layouts.
 mouse = [
     Drag([mod], "Button1", lazy.window.set_position_floating(), start=lazy.window.get_position()),
     Drag([mod], "Button3", lazy.window.set_size_floating(), start=lazy.window.get_size()),
     Click([mod], "Button2", lazy.window.bring_to_front()),
-   # --- Use standard group cycling ---
+   # Use standard group cycling
     Click([mod], "Button4", lazy.screen.next_group()),
     Click([mod], "Button5", lazy.screen.prev_group()),
 ]
@@ -565,7 +411,6 @@ floats_kept_above = True
 cursor_warp = True
 floating_layout = layout.Floating(
     float_rules=[
-        # Run the utility of `xprop` to see the wm class and name of an X client.
         *layout.Floating.default_float_rules,
         Match(wm_class="confirmreset"),   # gitk
         Match(wm_class="dialog"),         # dialog boxes
@@ -591,11 +436,8 @@ auto_fullscreen = True
 focus_on_window_activation = "smart"
 reconfigure_screens = True
 
-# If things like steam games want to auto-minimize themselves when losing
-# focus, should we respect this or not?
 auto_minimize = True
 
-# When using the Wayland backend, this can be used to configure input devices.
 wl_input_rules = None
 
 # xcursor theme (string or None) and size (integer) for Wayland backend
@@ -609,9 +451,6 @@ def assign_app_group(client):
     Run `xprop | grep WM_CLASS` in a terminal and click on a window
     to find its wm_class.
     """
-    # Use a dict for easy lookup
-    # Format: { "wm_class": ("group_name", options) }
-    # options: "switch" = switch to group after moving
 
     d = {
         "Brave-browser": ("1", "switch"),  
@@ -621,44 +460,28 @@ def assign_app_group(client):
         "KeePassXC":     ("7", "switch")     
     }
 
-    # Get the wm_class
     try:
 
         wm_class_tuple = client.window.get_wm_class()
         if not wm_class_tuple:
             return
-        # UNCOMMENT to debug in ~/.local/share/qtile/qtile.log
-        # logger.warning(f"New Client WM_CLASS: {wm_class_tuple}")
- # The tuple is (instance, class). We check if *either* is in our dict.
         matched_key = None
         for item in wm_class_tuple:
             if item in d:
                 matched_key = item
                 break
         
-        # If we found a match...
         if matched_key:
             group_name, option = d[matched_key]
             
-            # Move the window to the target group
             client.togroup(group_name)
 
-            # Optionally switch focus to that group
             if option == "switch":
-                # This now works because 'qtile' was imported
                 qtile.groups_map[group_name].toscreen()
 
     except (IndexError, TypeError):
         return  # Not all windows have a wm_class
 
-# XXX: Gasp! We're lying here. In fact, nobody really uses or cares about this
-# string besides java UI toolkits; you can see several discussions on the
-# mailing lists, GitHub issues, and other WM documentation that suggest setting
-# this string if your java app doesn't work correctly. We may as well just lie
-# and say that we're a working one by default.
-#
-# We choose LG3D to maximize irony: it is a 3D non-reparenting WM written in
-# java that happens to be on java's whitelist.
 wmname = "LG3D"
 
 @hook.subscribe.startup_once
@@ -671,13 +494,8 @@ def start_once():
     subprocess.call([autostart_script])
 
 
-
-# ── glibc heap trim ──────────────────────────────────────────────────────────
-# qtile's main (brk) arena ratchets upward: the polling widgets fragment it, so
-# the top free chunk stays small and glibc's dynamic trim threshold drifts up
-# until it effectively never returns pages. The heap then only grows, gets
-# swapped out, and every gen-2 GC has to fault it all back in -- which stalls
-# the WM event loop. Force an explicit trim on a timer.
+# glibc heap trim
+# Polling widgets fragment the heap so glibc never trims it; force a periodic trim.
 import ctypes as _ctypes
 
 MALLOC_TRIM_INTERVAL = 900  # seconds
@@ -703,13 +521,9 @@ def _start_malloc_trim():
     qtile.call_later(MALLOC_TRIM_INTERVAL, _malloc_trim)
 
 
-# ── Window transparency (compositor: xcompmgr) ────────────────────────────────
-# We composite with xcompmgr, not picom (see .config/qtile/autostart_x11.sh for
-# why picom was dropped). xcompmgr has no opacity *rules* of its own,
-# it only honours _NET_WM_WINDOW_OPACITY, so qtile drives the focus-dependent
-# dimming that the old picom "90:focused / 85:!focused" rule used to do: the
-# focused window is set to 0.90 and every other managed window to 0.85, updated
-# on each focus change and when a window is first managed.
+# Window transparency
+# Compositor (xcompmgr/fastcompmgr) has no opacity rules, only _NET_WM_WINDOW_OPACITY;
+# qtile sets focused 0.90 / others 0.85 here.
 _OPACITY_FOCUSED = 0.90
 _OPACITY_UNFOCUSED = 0.85
 

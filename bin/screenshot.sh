@@ -1,26 +1,10 @@
 #!/usr/bin/env bash
 # Screenshots on this xrdp/Xvnc desktop.
-#
-#   screenshot.sh gui    - flameshot region selector (Ctrl+C copy, Ctrl+S save)
-#   screenshot.sh full   - whole screen -> ~/Pictures/screenshot-<ts>.png
-#   screenshot.sh clip   - whole screen -> clipboard
-#
-# Why the dance:
-# * flameshot (>=12) turns the first launched process into a resident daemon
-#   and forwards later `flameshot gui` calls to it. That daemon keeps the screen
-#   geometry from when it started, and xrdp changes the geometry whenever the
-#   RDP client's monitor layout does (this session began at 5040x1920, it is
-#   1920x1200 now). A stale daemon therefore presents the wrong region - the
-#   "drifting field of view". So: kill any resident instance, start fresh.
-# * flameshot's `full`/`screen` CLI modes go through the xdg screenshot portal,
-#   whose GTK backend needs gnome-shell (dead here) -> 30 s timeout. Whole-screen
-#   captures use ImageMagick on the X root window instead (clipboard via copyq).
-# * Since flameshot 14 even `gui` goes through that portal by default (same 30 s
-#   timeout, then "Unable to capture screen"). It only falls back to a native X11
-#   grab with `useX11LegacyScreenshot=true` in its flameshot.ini. That file lives
-#   in ~/.var (flatpak sandbox data, deliberately not stowed - stow would fold
-#   the whole app dir into this repo), so this script asserts the key before
-#   every launch instead. Idempotent; survives flameshot rewriting the ini.
+#   gui  - flameshot region selector   full - whole screen -> ~/Pictures   clip - -> clipboard
+# Gotchas: flameshot's resident daemon caches the (xrdp-changing) geometry -> kill &
+# start fresh each time. Its portal modes need gnome-shell (dead) -> use ImageMagick
+# for full/clip. flameshot 14 gui also needs useX11LegacyScreenshot=true in its ini
+# (~/.var, not stowed), so assert that key before each launch.
 mode="${1:-gui}"
 ini="$HOME/.var/app/org.flameshot.Flameshot/config/flameshot/flameshot.ini"
 ensure_x11_legacy() {

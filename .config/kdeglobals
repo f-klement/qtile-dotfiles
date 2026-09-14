@@ -1,6 +1,4 @@
-# Rose Pine colour scheme for Qt apps using the KDE platform theme.
-# Consumers here: flatpaks on org.kde.Platform (QT_QPA_PLATFORMTHEME=kde + xdg-config/kdeglobals:ro
-# are set as global flatpak overrides). Native Qt5 apps use qt5ct instead.
+# Rose Pine for Qt apps on org.kde.Platform (flatpaks via QT_QPA_PLATFORMTHEME=kde). Native Qt5 uses qt5ct.
 [General]
 ColorScheme=RosePine
 Name=Rosé Pine
