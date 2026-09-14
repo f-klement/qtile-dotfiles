@@ -833,11 +833,11 @@ THEME
 
 ### 10. Default applications
 mkdir -p /home/$TARGET_USER/.config
-# Flatpak VSCodium as default editor (for $TARGET_USER)
+# VSCodium as default editor (for $TARGET_USER)
 sudo -u "$TARGET_USER" XDG_CONFIG_HOME="/home/$TARGET_USER/.config" xdg-mime default codium.desktop text/plain
 sudo -u "$TARGET_USER" XDG_CONFIG_HOME="/home/$TARGET_USER/.config" xdg-mime default codium.desktop text/x-python
 sudo -u "$TARGET_USER" XDG_CONFIG_HOME="/home/$TARGET_USER/.config" xdg-mime default codium.desktop text/x-shellscript
-# Flatpak Brave as default browser (for $TARGET_USER)
+# Brave as default browser (for $TARGET_USER)
 sudo -u "$TARGET_USER" XDG_CONFIG_HOME="/home/$TARGET_USER/.config" xdg-settings set default-web-browser brave-browser.desktop
 sudo -u "$TARGET_USER" XDG_CONFIG_HOME="/home/$TARGET_USER/.config" xdg-mime default brave-browser.desktop x-scheme-handler/http
 sudo -u "$TARGET_USER" XDG_CONFIG_HOME="/home/$TARGET_USER/.config" xdg-mime default brave-browser.desktop x-scheme-handler/https
