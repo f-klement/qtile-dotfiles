@@ -704,8 +704,8 @@ def _start_malloc_trim():
 
 
 # ── Window transparency (compositor: xcompmgr) ────────────────────────────────
-# We composite with xcompmgr, not picom (see .config/qtile/autostart_x11.sh and
-# .config/picom/picom.conf for why). xcompmgr has no opacity *rules* of its own,
+# We composite with xcompmgr, not picom (see .config/qtile/autostart_x11.sh for
+# why picom was dropped). xcompmgr has no opacity *rules* of its own,
 # it only honours _NET_WM_WINDOW_OPACITY, so qtile drives the focus-dependent
 # dimming that the old picom "90:focused / 85:!focused" rule used to do: the
 # focused window is set to 0.90 and every other managed window to 0.85, updated

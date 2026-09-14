@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # install.sh ─ one-shot bootstrap for a fresh **Rocky / RHEL 8** workstation
-# qtile-x11, picom, WM utilities, python3.12, extra repos, and the everyday
+# qtile-x11, xcompmgr compositor, WM utilities, python3.12, extra repos, and the everyday
 # applications, preferring upstream RPM repos over snap/flatpak where one exists
 # (snap and flatpak both went badly stale in practice: the codium snap sat 7
 # months behind, the Brave flatpak accumulated two unused runtime versions).
@@ -378,64 +378,6 @@ install_lxappearance() {
 }
 pkg_or_build lxappearance lxappearance install_lxappearance
 
-### 6. Build-time deps & picom ────────────────────────────────────────────────
-install_picom() {
-  # 0. Make sure clang is there
-  dnf -y groupinstall 'Development Tools'
-  dnf -y install clang clang-devel llvm
-
-  # 1. Build & install libconfig-1.7+ system-wide
-  [ -d /tmp/libconfig ] && rm -rf /tmp/libconfig
-  git clone https://github.com/hyperrealm/libconfig.git /tmp/libconfig
-  cd /tmp/libconfig
-  autoreconf -i
-  ./configure \
-    --prefix=/usr \
-    --sysconfdir=/etc \
-    --libdir=/usr/lib64
-  make -j"$(nproc)"
-  make install
-  sudo ldconfig
-
-  # 2. Install all the other deps you still need via dnf
-  dnf -y install \
-    dbus-devel \
-    libev-devel \
-    libX11-devel \
-    libxcb-devel \
-    mesa-libGL-devel \
-    mesa-libEGL-devel \
-    libepoxy-devel \
-    meson \
-    ninja-build \
-    pcre2-devel \
-    pixman-devel \
-    uthash-devel \
-    xcb-util-image-devel \
-    xcb-util-renderutil-devel \
-    xcb-util-devel \
-    xorg-x11-proto-devel \
-    asciidoctor \
-    texinfo
-
-  # 3. Clone, build & install picom
-  [ -d /tmp/picom ] && rm -rf /tmp/picom
-  git clone --branch v11.2 --depth=1 https://github.com/yshui/picom.git /tmp/picom
-  cd /tmp/picom
-  [ -d build ] && rm -rf build
-  /tmp/meson-venv/bin/meson setup build \
-    --prefix=/usr \
-    -Dbuildtype=release \
-    -Dwerror=false
- /tmp/meson-venv/bin/ninja -C build
-/tmp/meson-venv/bin/ninja -C build install
-}
-# xcompmgr is the compositor we actually run (installed in the package list
-# above): on the Xvnc software-RENDER session picom's blend of translucent
-# windows produces 16px dark banding, xcompmgr does not. picom is still built
-# as a documented fallback (its config sits at ~/.config/picom/picom.conf), but
-# do NOT remove xcompmgr any more -- the autostart depends on it.
-pkg_or_build picom picom install_picom
 
 # Wallpapers
 [[ -d /home/$TARGET_USER/Pictures/wallpapers ]] || \

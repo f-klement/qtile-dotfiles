@@ -56,7 +56,7 @@ export QTILE_CHECK_SKIP_STUBS=1
 
 # compositor (X11). xcompmgr, NOT picom: on this Xvnc software-RENDER session
 # picom's blend of translucent windows produces intermittent 16px dark banding
-# (see .config/picom/picom.conf header for the full diagnosis). xcompmgr blends
+# (picom is no longer installed). xcompmgr blends
 # the same _NET_WM_WINDOW_OPACITY correctly here. Per-window opacity (90 focused
 # / 85 unfocused) is set by qtile hooks in config.py, since xcompmgr has no
 # opacity rules of its own. -n = no shadows/fading, just compositing.
