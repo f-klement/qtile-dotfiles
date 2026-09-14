@@ -20,6 +20,15 @@ gsettings set org.gnome.desktop.interface font-name        'Cantarell 11'
 gsettings set org.gnome.desktop.interface monospace-font-name 'JetBrains Mono Nerd Font 10'
 xsetroot -cursor_name left_ptr
 
+# xdg-desktop-portal-gtk draws the file pickers for flatpaks/portal-aware apps.
+# It is a plain GTK3 systemd --user service that outlives X sessions, so it can
+# sit on a stale DISPLAY or keep a stale copy of the theme CSS in memory (which
+# is how the pickers stayed light after the theme swap). Point the user manager
+# at this session's display and start it fresh; nothing has a portal session
+# open yet at this point, so the restart is invisible.
+dbus-update-activation-environment --systemd DISPLAY XAUTHORITY
+systemctl --user restart xdg-desktop-portal-gtk.service xdg-desktop-portal.service 2>/dev/null &
+
 # Toolkit env lives in bin/starting-qtile.sh so all spawned apps inherit it.
 xprop -root -set _NET_WM_DESKTOP_ENVIRONMENT "Qtile"
 export XDG_CURRENT_DESKTOP=Qtile

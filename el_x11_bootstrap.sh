@@ -733,6 +733,10 @@ fi
 #   Qt5 native (copyq, polkit)  : qt5ct, QT_QPA_PLATFORMTHEME=qt5ct in bin/starting-qtile.sh
 #   Qt on org.kde.Platform      : .config/kdeglobals + QT_QPA_PLATFORMTHEME=kde override
 #   qtile bar / dunst / rofi / kitty : stowed configs, same palette.
+#   Portal file pickers (flatpaks) : xdg-desktop-portal-gtk, plain GTK3, follows
+#       the same XSETTINGS + settings.ini. It is a long-lived systemd --user
+#       service, so autostart_x11.sh restarts it per session to drop stale
+#       DISPLAY/theme state.
 dnf -y install gtk-murrine-engine gtk2-engines qt5ct papirus-icon-theme   # murrine + clearlooks: GTK2 half of the theme (EPEL)
 
 ROSE_GTK_VER="v2.2.0"; ROSE_CUR_VER="v1.1.0"
