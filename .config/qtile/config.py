@@ -431,6 +431,17 @@ def init_widgets(include_systray=True, include_updates=True):
         widget.Spacer(length=bar.STRETCH),
 
         # ---- RIGHT cluster --------------------------------------------------
+        # Wallpaper switcher: same script the autostart loop uses, so a click
+        # just advances to a random *other* image from ~/Pictures/wallpapers.
+        widget.TextBox(
+            text="\U000f00e3",        # Nerd Font paint brush (nf-md-brush)
+            fontsize=15,
+            padding=6,
+            foreground = doom_colors[7],
+            mouse_callbacks={
+                "Button1": lazy.spawn(os.path.expanduser("~/bin/wallpaper.sh")),
+            },
+        ),
         widget.Net(
             interface="eth0",   # pin: avoids enumerating docker0/virbr0/veth* each poll
             # ▾/▴ are 1-char arrows from the Nerd-Font set
@@ -690,3 +701,36 @@ def _malloc_trim():
 @hook.subscribe.startup_complete
 def _start_malloc_trim():
     qtile.call_later(MALLOC_TRIM_INTERVAL, _malloc_trim)
+
+
+# ── Window transparency (compositor: xcompmgr) ────────────────────────────────
+# We composite with xcompmgr, not picom (see .config/qtile/autostart_x11.sh and
+# .config/picom/picom.conf for why). xcompmgr has no opacity *rules* of its own,
+# it only honours _NET_WM_WINDOW_OPACITY, so qtile drives the focus-dependent
+# dimming that the old picom "90:focused / 85:!focused" rule used to do: the
+# focused window is set to 0.90 and every other managed window to 0.85, updated
+# on each focus change and when a window is first managed.
+_OPACITY_FOCUSED = 0.90
+_OPACITY_UNFOCUSED = 0.85
+
+def _apply_opacity(focused):
+    for w in list(qtile.windows_map.values()):
+        try:
+            w.opacity = _OPACITY_FOCUSED if w is focused else _OPACITY_UNFOCUSED
+        except Exception:
+            pass
+
+@hook.subscribe.client_focus
+def _opacity_on_focus(window):
+    _apply_opacity(window)
+
+@hook.subscribe.client_managed
+def _opacity_on_managed(window):
+    try:
+        window.opacity = _OPACITY_UNFOCUSED
+    except Exception:
+        pass
+
+@hook.subscribe.startup_complete
+def _opacity_on_start():
+    _apply_opacity(qtile.current_window)

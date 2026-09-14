@@ -430,9 +430,12 @@ install_picom() {
  /tmp/meson-venv/bin/ninja -C build
 /tmp/meson-venv/bin/ninja -C build install
 }
+# xcompmgr is the compositor we actually run (installed in the package list
+# above): on the Xvnc software-RENDER session picom's blend of translucent
+# windows produces 16px dark banding, xcompmgr does not. picom is still built
+# as a documented fallback (its config sits at ~/.config/picom/picom.conf), but
+# do NOT remove xcompmgr any more -- the autostart depends on it.
 pkg_or_build picom picom install_picom
-
-dnf -y remove xcompmgr || true
 
 # Wallpapers
 [[ -d /home/$TARGET_USER/Pictures/wallpapers ]] || \

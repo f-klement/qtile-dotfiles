@@ -54,28 +54,24 @@ copyq &                       # dnf install copyq
 # ── Cursor + View Settings ───────────────────────────────────
 export QTILE_CHECK_SKIP_STUBS=1
 
-# compositor for transparency/shadows (X11 sessions)
-#picom -b --config ~/.config/picom/picom.conf &
+# compositor (X11). xcompmgr, NOT picom: on this Xvnc software-RENDER session
+# picom's blend of translucent windows produces intermittent 16px dark banding
+# (see .config/picom/picom.conf header for the full diagnosis). xcompmgr blends
+# the same _NET_WM_WINDOW_OPACITY correctly here. Per-window opacity (90 focused
+# / 85 unfocused) is set by qtile hooks in config.py, since xcompmgr has no
+# opacity rules of its own. -n = no shadows/fading, just compositing.
+xcompmgr -n &
 
-# wallpaper service
-# Enumerate the wallpaper list ONCE at startup. The previous version ran a full
-# recursive find every 300s (288 directory walks/day), pulling dir entries and
-# image data through the page cache and evicting something else each time.
-WALLPAPER_DIR="$HOME/Pictures/wallpapers"
-mapfile -t WALLPAPERS < <(find "$WALLPAPER_DIR" -type f \( -iname '*.jpg' -o -iname '*.png' \) 2>/dev/null)
-
-feh_random() {
-  (( ${#WALLPAPERS[@]} == 0 )) && return 0
-  feh --bg-fill "${WALLPAPERS[RANDOM % ${#WALLPAPERS[@]}]}"
-}
-
-# initial wallpaper
-feh_random
+# wallpaper service -- bin/wallpaper.sh picks a random image (never the current
+# one) and caches the file list in $XDG_RUNTIME_DIR, so the 5-minute loop does
+# not re-walk the tree each time. The paint-brush button in the bar runs the
+# same script on demand.
+~/bin/wallpaper.sh
 
 # every 300 seconds (5m), pick & set a new one
 (
   while sleep 300; do
-    feh_random
+    ~/bin/wallpaper.sh
   done
 ) &
 
