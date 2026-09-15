@@ -198,7 +198,8 @@ flatpak install --user -y flathub \
   io.gitlab.librewolf-community \
   com.github.tchx84.Flatseal \
   org.flameshot.Flameshot \
-  md.obsidian.Obsidian
+  md.obsidian.Obsidian \
+  it.mijorus.gearlever   # Gear Lever = AppImage integration (replaces AppImageLauncher)
 '
 
 ### 5. Builds from source
@@ -538,15 +539,6 @@ skip_if_installed brew install_brew
 install_bruno() {
   dnf install -y fuse qt5-qtbase qt5-qtbase-gui
   npm install -g @usebruno/cli
-  
-  local AIL_URL
-  AIL_URL=$(curl -s https://api.github.com/repos/TheAssassin/AppImageLauncher/releases | \
-    jq -r '[.[] | select(.prerelease == false and (.tag_name | test("alpha|beta|rc"; "i") | not))][0] | .assets[] | select(.name | endswith("x86_64.rpm")) | .browser_download_url' | head -n 1)
-
-  echo "Downloading Stable AppImageLauncher from: $AIL_URL"
-  curl -L "$AIL_URL" -o /tmp/appimagelauncher.rpm
-  dnf localinstall -y /tmp/appimagelauncher.rpm
-  rm /tmp/appimagelauncher.rpm
 
   # Download the Bruno AppImage for the target user
   sudo -i -u "$TARGET_USER" bash << 'EOF'
@@ -556,7 +548,7 @@ install_bruno() {
     mkdir -p "$HOME/Applications"
     curl -L "$BRUNO_URL" -o "$HOME/Applications/Bruno.AppImage"
     chmod +x "$HOME/Applications/Bruno.AppImage"
-    echo "Please register Bruno on the first launch systemwide with Appimage Laucher at: HOME/Applications/Bruno.AppImage"
+    echo "Integrate Bruno via Gear Lever (flatpak, section 4): open Gear Lever and add $HOME/Applications/Bruno.AppImage"
 EOF
 }
 skip_if_installed bruno install_bruno
