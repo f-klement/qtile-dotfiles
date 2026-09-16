@@ -143,3 +143,18 @@ RosePine = [
     ["#ebbcba", "#ebbcba"], # rose       - color15 (cyan slot)
     ["#6e6a86", "#6e6a86"]  # muted      - color[9] (grey)
     ]
+
+# Rose Pine Dawn (light) - same slot mapping as RosePine above, so config.py can
+# swap the two palettes without touching any widget.
+RosePineDawn = [
+    ["#faf4ed", "#faf4ed"], # base       - bg
+    ["#575279", "#575279"], # text       - fg
+    ["#fffaf3", "#fffaf3"], # surface    - color01
+    ["#b4637a", "#b4637a"], # love       - color02 (red)
+    ["#56949f", "#56949f"], # foam       - color03 (green slot)
+    ["#ea9d34", "#ea9d34"], # gold       - color04 (yellow)
+    ["#286983", "#286983"], # pine       - color05 (blue)
+    ["#907aa9", "#907aa9"], # iris       - color06 (magenta; focus border)
+    ["#d7827e", "#d7827e"], # rose       - color15 (cyan slot)
+    ["#9893a5", "#9893a5"]  # muted      - color[9] (grey)
+    ]

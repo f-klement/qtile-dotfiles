@@ -9,16 +9,10 @@ if [ -x /usr/libexec/polkit-kde-authentication-agent-1 ]; then
     /usr/libexec/polkit-kde-authentication-agent-1 &
 fi
 
-# Theming (Rosé Pine, dark). gsd-xsettings turns these gsettings into XSETTINGS
-# for every GTK/Chromium/Electron app, incl. ones launched later from rofi.
-# NOTE: gtk-theme must be a ~/.themes dir name; "Adwaita:dark" resolves to LIGHT.
-gsettings set org.gnome.desktop.interface gtk-theme        'rose-pine-gtk'
-gsettings set org.gnome.desktop.interface icon-theme       'Papirus-Dark'
-gsettings set org.gnome.desktop.interface cursor-theme     'BreezeX-RosePine-Linux'
-gsettings set org.gnome.desktop.interface cursor-size      24
-gsettings set org.gnome.desktop.interface font-name        'Cantarell 11'
-gsettings set org.gnome.desktop.interface monospace-font-name 'JetBrains Mono Nerd Font 10'
-xsetroot -cursor_name left_ptr
+# Theming (Rosé Pine dark / Rosé Pine Dawn light, see bin/theme.sh): re-asserts
+# the saved mode's gsettings (gsd-xsettings -> XSETTINGS for every GTK/Chromium/
+# Electron app) and regenerates the per-toolkit files. The bar's sun/moon toggles.
+~/bin/theme.sh apply
 
 # xdg-desktop-portal-gtk draws the file pickers for flatpaks/portal-aware apps.
 # It is a plain GTK3 systemd --user service that outlives X sessions, so it can

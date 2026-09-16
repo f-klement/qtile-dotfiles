@@ -713,7 +713,13 @@ fi
 # lives in bin/starting-qtile.sh, and DOCKER_HOST / DOCKER_BUILDKIT=0 in .zshrc -
 # both are stowed from this repo, so they need nothing here.
 
-### 9.6 Theming - Rosé Pine, dark, across toolkits
+### 9.6 Theming - Rosé Pine (dark) / Rosé Pine Dawn (light) across toolkits
+# bin/theme.sh is the single switch (sun/moon in the qtile bar, or
+# `theme.sh dark|light|toggle`): it saves the mode in ~/.local/state/theme-mode,
+# regenerates the per-toolkit files from the tracked variants (*.rose-pine* /
+# *.in templates) and re-asserts gsettings. autostart_x11.sh runs `theme.sh
+# apply` every session, so this section only installs the assets and seeds the
+# dark defaults (theme.sh needs the stowed configs, i.e. `stow .` first).
 # How theming reaches each toolkit in this session (gnome-session + qtile):
 #   GTK2/3 + Chromium/Electron : gsd-xsettings (kept alive in 9.5.1) broadcasts
 #       gsettings org.gnome.desktop.interface as XSETTINGS. The theme name MUST be
@@ -724,7 +730,9 @@ fi
 #       exposed to sandboxes via the flatpak overrides below.
 #   Qt5 native (copyq, polkit)  : qt5ct, QT_QPA_PLATFORMTHEME=qt5ct in bin/starting-qtile.sh
 #   Qt on org.kde.Platform      : .config/kdeglobals + QT_QPA_PLATFORMTHEME=kde override
-#   qtile bar / dunst / rofi / kitty : stowed configs, same palette.
+#   qtile bar / dunst / rofi / kitty : stowed configs, same palette (both variants).
+#   Claude Code                 : ~/.claude/themes/*.json (stowed) + settings.json theme
+#   VSCodium / Obsidian         : their own settings, flipped by theme.sh
 #   Portal file pickers (flatpaks) : xdg-desktop-portal-gtk, plain GTK3, follows
 #       the same XSETTINGS + settings.ini. It is a long-lived systemd --user
 #       service, so autostart_x11.sh restarts it per session to drop stale
@@ -736,20 +744,24 @@ sudo -iu "$TARGET_USER" env ROSE_GTK_VER="$ROSE_GTK_VER" ROSE_CUR_VER="$ROSE_CUR
   mkdir -p ~/.themes ~/.icons
   tmp=$(mktemp -d)
   curl -fsSL -o "$tmp/gtk3.tar.gz"    "https://github.com/rose-pine/gtk/releases/download/$ROSE_GTK_VER/gtk3.tar.gz"
-  curl -fsSL -o "$tmp/cursors.tar.xz" "https://github.com/rose-pine/cursors/releases/download/$ROSE_CUR_VER/BreezeX-RosePine-Linux.tar.xz"
+  for c in BreezeX-RosePine-Linux BreezeX-RosePineDawn-Linux; do
+    curl -fsSL -o "$tmp/$c.tar.xz" "https://github.com/rose-pine/cursors/releases/download/$ROSE_CUR_VER/$c.tar.xz"
+    tar xJf "$tmp/$c.tar.xz" -C ~/.icons 2>/dev/null
+  done
   tar xzf "$tmp/gtk3.tar.gz" -C "$tmp" 2>/dev/null
-  for t in rose-pine-gtk rose-pine-moon-gtk; do
+  for t in rose-pine-gtk rose-pine-moon-gtk rose-pine-dawn-gtk; do
     rm -rf ~/.themes/$t && cp -r "$tmp/gtk3/$t" ~/.themes/
     # Upstream ships a mis-generated LIGHT gtk-dark.css. With
     # gtk-application-prefer-dark-theme=1 GTK loads exactly that file, so make
-    # the "dark variant" the real (already dark) theme.
+    # the "dark variant" the real theme (for dawn both are light anyway, and
+    # this keeps the theme correct whichever prefer-dark value an app cached).
     for v in gtk-3.0 gtk-3.20; do cp ~/.themes/$t/$v/gtk.css ~/.themes/$t/$v/gtk-dark.css; done
   done
-  tar xJf "$tmp/cursors.tar.xz" -C ~/.icons 2>/dev/null
   printf '[Icon Theme]\nName=Default\nComment=Default Cursor Theme\nInherits=BreezeX-RosePine-Linux\n' > ~/.icons/default/index.theme
   rm -rf "$tmp"
 
-  # authoritative GTK settings (XSETTINGS source); mirrored in .config/gtk-3.0/settings.ini
+  # authoritative GTK settings (XSETTINGS source), dark seed; bin/theme.sh
+  # re-asserts them (or the Dawn set) every session and generates settings.ini.
   gsettings set org.gnome.desktop.interface gtk-theme    'rose-pine-gtk'
   gsettings set org.gnome.desktop.interface icon-theme   'Papirus-Dark'
   gsettings set org.gnome.desktop.interface cursor-theme 'BreezeX-RosePine-Linux'

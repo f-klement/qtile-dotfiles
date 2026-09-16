@@ -1,4 +1,5 @@
-/* Rose Pine for libadwaita - github.com/rose-pine/gtk (gtk4/rose-pine.css, v2.2.0) */
+/* Rose Pine for libadwaita - github.com/rose-pine/gtk (gtk4/rose-pine.css, v2.2.0).
+ * theme.sh copies this (or gtk-rose-pine-dawn.css) to gtk.css. */
 
 @define-color accent_bg_color #c4a7e7;
 @define-color accent_fg_color #191724;

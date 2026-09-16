@@ -211,7 +211,20 @@ for i in groups:
         ]
     )
 
-doom_colors = color_mod.RosePine
+# Light/dark mode. ~/bin/theme.sh owns the state file and re-themes every
+# toolkit; it ends with a reload_config so this picks up the new palette.
+THEME_MODE_FILE = os.path.join(
+    os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state")), "theme-mode")
+
+def _read_theme_mode():
+    try:
+        with open(THEME_MODE_FILE) as f:
+            return "light" if f.read().strip() == "light" else "dark"
+    except OSError:
+        return "dark"
+
+THEME_MODE = _read_theme_mode()
+doom_colors = color_mod.RosePineDawn if THEME_MODE == "light" else color_mod.RosePine
 layout_theme = {"border_width": 1,
                 "margin": 0,
                 "border_focus": doom_colors[7],
@@ -245,7 +258,7 @@ def toggle_vol_text(qtile):
 def power_menu(qtile):
     qtile.spawn(
         "bash -c '"
-        "choice=$(GTK_THEME=Adwaita:dark yad --width=200 --height=50 "
+        "choice=$(GTK_THEME=" + ("Adwaita" if THEME_MODE == "light" else "Adwaita:dark") + " yad --width=200 --height=50 "
         "--title=\"Power Menu\" "
         "--button=\"Shutdown:0\" --button=\"Reboot:1\" "
         "--center --on-top --no-markup --undecorated); "
@@ -291,6 +304,17 @@ def init_widgets(include_systray=True, include_updates=True):
         widget.Spacer(length=bar.STRETCH),
 
         # RIGHT cluster
+        # Light/dark toggle: icon shows the ACTIVE mode (moon = dark, sun = light).
+        # theme.sh re-themes everything and reloads this config, which redraws the icon.
+        widget.TextBox(
+            text="\U000f05a8" if THEME_MODE == "light" else "\U000f0594",  # nf-md-white_balance_sunny / nf-md-weather_night
+            fontsize=15,
+            padding=6,
+            foreground = doom_colors[5],
+            mouse_callbacks={
+                "Button1": lazy.spawn(os.path.expanduser("~/bin/theme.sh") + " toggle"),
+            },
+        ),
         # Wallpaper switcher (same script as the autostart loop).
         widget.TextBox(
             text="\U000f00e3",        # Nerd Font paint brush (nf-md-brush)

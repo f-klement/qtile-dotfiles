@@ -30,7 +30,12 @@ dbus-update-activation-environment --systemd GNOME_KEYRING_CONTROL SSH_AUTH_SOCK
 # Toolkit env: everything qtile spawns inherits this (GTK via XSETTINGS instead).
 # Do NOT export GTK_THEME here -- it disables prefer-dark and breaks libadwaita.
 export QT_QPA_PLATFORMTHEME=qt5ct
-export XCURSOR_THEME=BreezeX-RosePine-Linux
+# Cursor follows the light/dark mode saved by bin/theme.sh (default dark).
+if [[ "$(cat "${XDG_STATE_HOME:-$HOME/.local/state}/theme-mode" 2>/dev/null)" == light ]]; then
+  export XCURSOR_THEME=BreezeX-RosePineDawn-Linux
+else
+  export XCURSOR_THEME=BreezeX-RosePine-Linux
+fi
 export XCURSOR_SIZE=24
 # Keep __pycache__ out of the stowed (symlinked) config dirs.
 export PYTHONPYCACHEPREFIX="$HOME/.cache/python-pycache"
