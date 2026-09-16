@@ -203,7 +203,11 @@ flatpak install --user -y flathub \
 '
 
 ### 5. Builds from source
-# 5.0 i3-lock
+# 5.0 i3lock-color (github.com/Raymo111/i3lock-color): i3lock fork with
+# themeable ring/inside/text colours + clock. .config/qtile/lock_with_random_bg_x11.sh
+# drives it with ~/.config/i3lock/current.conf, which bin/theme.sh generates, so
+# the lock follows the light/dark switch. Installs as /usr/bin/i3lock (replacing
+# a plain i3lock, whose CLI lacks the colour flags). Always built: no EL package.
 install_i3lock() {
   set -e
   # 1. Install all build-time dependencies
@@ -211,7 +215,8 @@ install_i3lock() {
     libev-devel libX11-devel libxkbcommon-devel libxkbcommon-x11-devel \
     libxcb-devel xcb-util-devel xcb-util-image-devel xcb-util-keysyms-devel \
     xcb-util-renderutil-devel xcb-util-wm-devel xcb-util-cursor-devel \
-    xorg-x11-util-macros autoconf automake libtool copyq
+    xorg-x11-util-macros autoconf automake libtool copyq \
+    libjpeg-turbo-devel giflib-devel fontconfig-devel   # i3lock-color extras (giflib/jpeg: PowerTools)
 
   # 2. Build & install xcb-util-xrm
   rm -rf /tmp/xcb-util-xrm
@@ -223,16 +228,24 @@ install_i3lock() {
   make -j"$(nproc)"
   make install
 
-  # 3. Build & install i3lock
-  rm -rf /tmp/i3lock
-  git clone https://github.com/i3/i3lock.git --depth 1 /tmp/i3lock
-  cd /tmp/i3lock
-  rm -rf build
-  meson setup build --prefix=/usr --buildtype=release
-  ninja -C build
-  ninja -C build install
+  # 3. Build & install i3lock-color (autotools; --sysconfdir so pam/i3lock lands in /etc/pam.d)
+  rm -rf /tmp/i3lock-color
+  git clone https://github.com/Raymo111/i3lock-color.git --depth 1 /tmp/i3lock-color
+  cd /tmp/i3lock-color
+  autoreconf -fi
+  mkdir -p build && cd build
+  ../configure --prefix=/usr --sysconfdir=/etc
+  make -j"$(nproc)"
+  make install
 }
-pkg_or_build i3lock i3lock install_i3lock
+# Detect the fork by its version banner (git builds print a commit hash, not
+# 2.13.c.N, but always the fork maintainer's copyright); a plain i3lock
+# (packaged or the old build from this section) is replaced.
+if i3lock --version 2>&1 | grep -q 'Raymond Li'; then
+  echo "✔ i3lock-color present, skipping."
+else
+  install_i3lock
+fi
 
 # 5.1 dunst
 

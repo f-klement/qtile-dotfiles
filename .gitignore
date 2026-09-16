@@ -35,4 +35,5 @@ archive/docs/
 .config/gtk-3.0/settings.ini
 .config/qt5ct/qt5ct.conf
 .config/kdeglobals
+.config/i3lock/current.conf
 .gtkrc-2.0

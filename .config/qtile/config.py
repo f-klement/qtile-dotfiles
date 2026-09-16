@@ -378,8 +378,9 @@ def init_widgets(include_systray=True, include_updates=True):
             distro="Fedora",  # This uses the DNF backend, which works for Rocky/RHEL
             display_format="󱧕 {updates}", #  is a Nerd Font package icon
             no_update_string="󱧕 0",
-            colour_have_updates=doom_colors[5], # Green
-            colour_no_updates=doom_colors[9],   # Grey
+            colour_have_updates=doom_colors[5], # gold
+            # muted grey reads fine on the dark base but washes out on Dawn's cream
+            colour_no_updates=doom_colors[9] if THEME_MODE == "dark" else doom_colors[1],
             update_interval=1800, # Check every 30 mins
             mouse_callbacks={
                 # Left-click runs system_update.sh in a terminal.
@@ -394,10 +395,21 @@ def init_widgets(include_systray=True, include_updates=True):
     ] if include_updates else [])
     widgets.extend([
         widget.Spacer(length=1),
+        # Lock screen (i3lock-color, themed via theme.sh; same script xss-lock uses).
+        widget.TextBox(
+            text="\U000f033e",        # Nerd Font lock (nf-md-lock)
+            padding=6,
+            fontsize=15,
+            foreground = doom_colors[7],
+            mouse_callbacks={
+                "Button1": lazy.spawn(os.path.expanduser("~/.config/qtile/lock_with_random_bg_x11.sh")),
+            },
+        ),
         widget.TextBox(
             text="⏻",
             padding=6,
             fontsize=16,
+            foreground = doom_colors[1],   # explicit: the widget default (#ffffff) vanishes on Dawn
             mouse_callbacks={
                  # See system_reboot.sh.
                  "Button1": lazy.spawn([
