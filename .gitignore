@@ -30,6 +30,7 @@ archive/docs/
 .config/kitty/current-theme.conf
 .config/rofi/colors.rasi
 .config/dunst/dunstrc.d/
+.config/swaylock/config
 .config/gtk-4.0/gtk.css
 .config/gtk-4.0/settings.ini
 .config/gtk-3.0/settings.ini

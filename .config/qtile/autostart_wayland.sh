@@ -12,6 +12,11 @@ dbus-update-activation-environment --systemd \
   DESKTOP_SESSION QT_QPA_PLATFORM QT_QPA_PLATFORMTHEME QT_WAYLAND_DISABLE_WINDOWDECORATION \
   MOZ_ENABLE_WAYLAND ELECTRON_OZONE_PLATFORM_HINT XCURSOR_THEME XCURSOR_SIZE PYTHONPYCACHEPREFIX
 
+# Bring up graphical-session.target (via qtile-session.target, stowed from
+# .config/systemd/user). xdg-desktop-portal and other session services are
+# Requisite= on it and refuse to start without it.
+systemctl --user start qtile-session.target
+
 # Portals are long-lived systemd --user services. The user manager lingers
 # (podman), so they can still hold a previous (Plasma) session's env and backend
 # choice. Stop the backends and restart the frontend: it re-reads
@@ -45,6 +50,14 @@ done
 # Tray (StatusNotifier in the bar; nm-applet needs --indicator for SNI).
 nm-applet --indicator &
 copyq &
+
+# Bluetooth pairing agent + file transfer (Plasma's bluedevil is not running
+# here). The bar icon is config.py's BluetoothIcon, so blueman's own tray icon
+# is switched off.
+if command -v blueman-applet >/dev/null 2>&1; then
+  gsettings set org.blueman.general plugin-list "['!StatusNotifierItem']" 2>/dev/null
+  blueman-applet &
+fi
 export QTILE_CHECK_SKIP_STUBS=1
 
 # Wallpaper: random on start, then a fresh one every 5 min (swaybg, see bin/wallpaper.sh).

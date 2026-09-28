@@ -1,0 +1,11 @@
+# Started by .config/qtile/autostart_wayland.sh, stopped by
+# bin/starting-qtile-wayland.sh when qtile exits. graphical-session.target
+# refuses manual start, so a session target has to bind it: without it the
+# portal (Requisite=graphical-session.target) cannot start - flatpak Brave then
+# cannot open downloads (Citrix .ica tickets) and file pickers fail.
+[Unit]
+Description=qtile Wayland session
+Documentation=man:systemd.special(7)
+BindsTo=graphical-session.target
+Wants=graphical-session-pre.target
+After=graphical-session-pre.target

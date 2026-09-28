@@ -139,6 +139,9 @@ keys = [
     Key([], "XF86AudioMicMute", lazy.spawn("pactl set-source-mute @DEFAULT_SOURCE@ toggle"), desc="Mute mic"),
     Key([], "XF86MonBrightnessUp", lazy.spawn("brightnessctl set 5%+"), desc="Brightness up"),
     Key([], "XF86MonBrightnessDown", lazy.spawn("brightnessctl set 5%-"), desc="Brightness down"),
+    # Lock: logind broadcasts it and the session's listener runs the themed
+    # locker (swayidle -> swaylock on Wayland, xss-lock -> i3lock on X11).
+    Key([mod], "l", lazy.spawn("loginctl lock-session"), desc="Lock the screen"),
     Key([mod, "control"], "r", lazy.reload_config(), desc="Reload the config"),
     Key([mod, "control"], "q", lazy.shutdown(), desc="Shutdown Qtile"),
     Key([mod], "r", lazy.spawncmd(prompt="Run: "), desc="Spawn a command"),
@@ -181,8 +184,17 @@ GROUP_ROLE = {
     "2": "landscape",   # codium
     "5": "small",       # nautilus / dolphin
     "6": "small",       # obsidian
+    "9": "landscape",   # citrix (the monitor Citrix itself picks for this layout)
 }
 GROUP_SCREEN = {name: SCREEN[role] for name, role in GROUP_ROLE.items()}
+
+# Citrix Workspace session (wfica, X11 via Xwayland). Spanning several monitors
+# needs _NET_WM_FULLSCREEN_MONITORS, which the wlroots Xwayland WM does not
+# offer (wfica logs "multi-monitor is not supported by current window
+# manager"), so the session runs fullscreen on ONE monitor in its own group 9.
+# Its splash/login/error/reconnect dialogs are Wfica_* and float on top (ON_TOP).
+CITRIX_SESSION = Match(wm_class=re.compile(r"^[Ww]fica$"))
+CITRIX_DIALOG = Match(wm_class=re.compile(r"^Wfica_"))
 
 # Spawn rules. X11: wm_class of the RUNNING window (codium reports "codium").
 # Wayland: the app_id (brave-browser, codium, org.gnome.Nautilus, obsidian, ...).
@@ -192,10 +204,11 @@ GROUP_MATCHES = {
     "5": [Match(wm_class=re.compile(r"^(nautilus|org\.gnome\.Nautilus|org\.kde\.dolphin)$"))],
     "6": [Match(wm_class=re.compile(r"^(md\.obsidian\.obsidian|obsidian)$"))],
     "7": [Match(wm_class=re.compile(r"^(KeePassXC|keepassxc|org\.keepassxc\.KeePassXC)$"))],
+    "9": [CITRIX_SESSION],
 }
 
 # Groups whose apps also pull the view to them when they open (see follow_app_group).
-FOLLOW_GROUPS = {"1", "2", "7"}
+FOLLOW_GROUPS = {"1", "2", "7", "9"}
 
 groups = []
 for _name in "123456789":
@@ -263,8 +276,15 @@ extension_defaults = widget_defaults.copy()
 # helpers
 @lazy.function
 def toggle_vol_text(qtile):
-    w = qtile.widgets_map["pulsevolume"]
-    w.fmt = "" if w.fmt.endswith("{}") else " {}"   # no percent sign
+    # Every live bar's volume widget, not widgets_map["pulsevolume"]: after a
+    # screen rebuild that name belongs to a dead widget (new ones get _N).
+    for w in [w for s in qtile.screens if s.top for w in s.top.widgets
+              if isinstance(w, widget.PulseVolume)]:
+        _toggle_one_vol(w)
+
+
+def _toggle_one_vol(w):
+    w.fmt ="" if w.fmt.endswith("{}") else " {}"   # no percent sign
     w.bar.draw()
     
 @lazy.function
@@ -289,6 +309,136 @@ def _default_route_iface(fallback="eth0"):
         return min((r for r in rows if r[1] == "00000000"), key=lambda r: int(r[6]))[0]
     except (OSError, ValueError, IndexError):
         return fallback
+
+def _run(*cmd):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=3).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+class _StateIcon(widget.GenPollText):
+    """Icon whose glyph and colour follow probe() -> state key in STATES."""
+    STATES = {}
+
+    def __init__(self, **config):
+        # Start in the theme colour: _TextBox bakes foreground into its text
+        # layout at configure time (default white - invisible on Dawn).
+        config.setdefault("foreground", next(iter(self.STATES.values()))[1])
+        super().__init__(func=self._render, **config)
+
+    def probe(self):
+        raise NotImplementedError
+
+    def label(self, state):
+        """Extra text after the glyph (none by default)."""
+        return ""
+
+    def update(self, text):
+        # _TextBox.update() skips the redraw when the text is unchanged, but the
+        # state may only have changed colour (bluetooth off/on/connected share
+        # one glyph) - redraw then too.
+        recoloured = getattr(self, "_drawn_colour", None) != self.foreground
+        super().update(text)
+        if recoloured and self.text == text and self.can_draw():
+            self.draw()
+        self._drawn_colour = self.foreground
+
+    def _render(self):
+        state = self.probe()
+        glyph, colour = self.STATES[state]
+        # Setting self.foreground alone never reaches the drawn text; recolour
+        # the layout like qtile's own widgets (df, chord) do.
+        self.foreground = colour
+        if getattr(self, "layout", None) is not None:
+            self.layout.colour = colour
+        return glyph + self.label(state)
+
+    def act(self, *cmds):
+        """Run commands in order off the event loop (qtile IS the compositor on
+        Wayland: a blocking call freezes the screen), then redraw right away."""
+        def work():
+            for cmd in cmds:
+                _run(*cmd)
+
+        def run():
+            fut = qtile.run_in_executor(work)
+            fut.add_done_callback(lambda _: qtile.call_soon_threadsafe(self.force_update))
+        return run
+
+
+class MicIcon(_StateIcon):
+    """Default PipeWire source, same design as the volume widget: icon only,
+    left click shows "<icon> 35%" ("M" when muted), middle mixer (inputs tab),
+    right mute, wheel +-5 %."""
+    STATES = {
+        # Font Awesome, like the volume widget's \uf028 (same family and size)
+        "on":    ("\uf130", doom_colors[7][0]),   # fa-microphone
+        "muted": ("\uf131", doom_colors[9][0]),   # fa-microphone-slash
+        "none":  ("\uf131", doom_colors[9][0]),
+    }
+    SRC = "@DEFAULT_AUDIO_SOURCE@"
+
+    def __init__(self, **config):
+        self.show_level = False
+        self._level = None
+        config.setdefault("mouse_callbacks", {
+            "Button1": self._toggle_level,
+            "Button2": lazy.spawn("pavucontrol -t 4"),                 # mixer, input devices tab
+            "Button3": self.act(("wpctl", "set-mute", self.SRC, "toggle")),
+            "Button4": self.act(("wpctl", "set-volume", "-l", "1.0", self.SRC, "5%+")),
+            "Button5": self.act(("wpctl", "set-volume", self.SRC, "5%-")),
+        })
+        super().__init__(**config)
+
+    def probe(self):
+        out = _run("wpctl", "get-volume", self.SRC)            # "Volume: 0.35 [MUTED]"
+        try:
+            self._level = round(float(out.split()[1]) * 100)
+        except (IndexError, ValueError):
+            self._level = None
+        return "none" if not out else ("muted" if "MUTED" in out else "on")
+
+    def label(self, state):
+        # PulseVolume's unmute_format "{volume}%" / mute_format "M"
+        if not self.show_level or self._level is None:
+            return ""
+        return " M" if state == "muted" else f" {self._level}%"
+
+    def _toggle_level(self):
+        self.show_level = not self.show_level
+        self.force_update()
+
+
+class BluetoothIcon(_StateIcon):
+    """Adapter state: left click switches the radio, right click opens blueman."""
+    STATES = {
+        # Font Awesome fa-bluetooth-b, like the volume/mic icons; FA has no
+        # "off" variant, so the state is the colour: muted / pine / foam.
+        "off":       ("\uf294", doom_colors[9][0]),
+        "on":        ("\uf294", doom_colors[6][0]),
+        "connected": ("\uf294", doom_colors[4][0]),
+    }
+
+    def __init__(self, **config):
+        config.setdefault("mouse_callbacks", {
+            "Button1": self._toggle,
+            "Button3": lambda: qtile.spawn("blueman-manager"),
+        })
+        super().__init__(**config)
+
+    def probe(self):
+        if "Powered: yes" not in _run("bluetoothctl", "show"):
+            return "off"            # also: rfkill-blocked, or no adapter/bluetoothd
+        return "connected" if _run("bluetoothctl", "devices", "Connected").strip() else "on"
+
+    def _toggle(self):
+        if self.probe() == "off":   # soft-blocked radios refuse "power on" until unblocked
+            self.act(("rfkill", "unblock", "bluetooth"), ("sleep", "1"),
+                     ("bluetoothctl", "power", "on"))()
+        else:
+            self.act(("bluetoothctl", "power", "off"))()
+
 
 def init_widgets(include_systray=True, include_updates=True):
     widgets = [
@@ -365,7 +515,7 @@ def init_widgets(include_systray=True, include_updates=True):
         ),
         widget.Memory(
             foreground = doom_colors[8],
-            format="\U000f035b {MemUsed:4.1f}G",   # nf-md-memory (NF v3; the old U+F538 fell back to a Tibetan font)
+            format="\U000f035b {MemUsed:>3.1f}G",   # nf-md-memory (NF v3; the old U+F538 fell back to a Tibetan font)
             measure_mem="G",               # tell the widget we want GiB/GB
             update_interval=5,
         ),
@@ -382,6 +532,14 @@ def init_widgets(include_systray=True, include_updates=True):
                 "Button3": lazy.spawn(os.path.expanduser("~/bin/screenshot.sh") + " clip"),  # whole screen -> clipboard
             },
         ),
+        ]
+    if WAYLAND:
+        # Mic + bluetooth next to the volume, Wayland (Fedora laptop) only; their
+        # services (blueman-applet) start in autostart_wayland.sh.
+        at = next(i for i, w in enumerate(widgets) if isinstance(w, widget.PulseVolume)) + 1
+        widgets[at:at] = [
+            MicIcon(update_interval=2),      # bar-default size/padding, as PulseVolume
+            BluetoothIcon(update_interval=5),   # bar-default size/padding, as PulseVolume
         ]
     if include_systray:
         # XEmbed Systray is X11-only; on Wayland tray icons are StatusNotifierItems
@@ -478,7 +636,7 @@ PORTAL_DIALOG = Match(wm_class=re.compile(
     r"^(xdg-desktop-portal-(gtk|kde)|org\.freedesktop\.impl\.portal\.desktop\.(gtk|kde))$"))
 
 # Floated, centred, raised above everything and focused (_keep_on_top).
-ON_TOP = [SCREENSHOT_EDITOR, PORTAL_DIALOG]
+ON_TOP = [SCREENSHOT_EDITOR, PORTAL_DIALOG, CITRIX_DIALOG]
 cursor_warp = True
 floating_layout = layout.Floating(
     float_rules=[
@@ -544,6 +702,11 @@ def repin_groups():
     for b in [o for o in gc.get_objects() if isinstance(o, bar.Bar)]:
         if b.window is not None and not any(b is lb for lb in live_bars):
             b.finalize()
+    # ...and forget their widgets: widgets_map would otherwise keep resolving
+    # names ("pulsevolume", "micicon") to the dead copies.
+    live_widgets = {id(w) for b in live_bars for w in getattr(b, "widgets", [])}
+    for name in [n for n, w in qtile.widgets_map.items() if id(w) not in live_widgets]:
+        del qtile.widgets_map[name]
 
     plan, taken = [], set()
     for i, scr in enumerate(live):
@@ -650,12 +813,37 @@ def _opacity_on_managed(window):
         pass
 
 @hook.subscribe.client_managed
+def _citrix_never_minimize(window):
+    """wfica iconifies itself (e.g. fullscreen losing focus), and qtile's Wayland
+    backend grants every minimize request (auto_minimize is not consulted), so
+    the session vanished with no way back. Refuse minimizing for Citrix windows."""
+    if WAYLAND and (CITRIX_SESSION.compare(window) or CITRIX_DIALOG.compare(window)):
+        window.handle_request_minimize = lambda minimize: False
+        if window.minimized:
+            window.minimized = False
+
+
+def _fit_on_screen(window, margin=24):
+    """Centre a floating window in its screen's free area (below the bar),
+    shrunk to fit. qtile's center() keeps the window's own size, so a portal
+    file picker wider than the 1200 px portrait panel (GTK remembers the size
+    from bigger monitors) hung off both edges with parts unreachable."""
+    scr = window.group.screen if window.group else None
+    if scr is None:
+        return
+    w = min(window.width, scr.dwidth - 2 * margin)
+    h = min(window.height, scr.dheight - 2 * margin)
+    window.place(scr.dx + (scr.dwidth - w) // 2, scr.dy + (scr.dheight - h) // 2,
+                 w, h, window.borderwidth, window.bordercolor, above=True)
+
+
+@hook.subscribe.client_managed
 def _keep_on_top(window):
     if not any(m.compare(window) for m in ON_TOP):
         return
     if SCREENSHOT_EDITOR.compare(window):
         window.opacity = 1.0
-    window.center()
+    _fit_on_screen(window)
     # bring_to_front, not keep_above: on Wayland keep_above is a layer BELOW
     # max-layout and fullscreen windows; bring-to-front sits above both, under
     # the bar/notifications. qtile only re-layers a window on float-state

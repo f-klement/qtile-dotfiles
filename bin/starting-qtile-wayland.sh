@@ -62,7 +62,12 @@ export PATH="$HOME/bin:$HOME/.local/bin:$PATH"
 QTILE="$(command -v qtile || echo "$HOME/.local/venvs/qtile/bin/qtile")"
 if [[ -x "$QTILE" ]]; then
   echo "[$(date)] Starting Qtile from $QTILE (wayland)" >> "$LOGFILE"
-  exec "$QTILE" start -b wayland
+  # Not exec: when qtile exits, take graphical-session.target (and the portals
+  # bound to it) down with the session - autostart_wayland.sh started it.
+  "$QTILE" start -b wayland || rc=$?
+  systemctl --user stop qtile-session.target || true
+  echo "[$(date)] Qtile exited (${rc:-0})" >> "$LOGFILE"
+  exit "${rc:-0}"
 else
   echo "[$(date)] ERROR: no qtile binary found" >> "$LOGFILE"
   exit 1

@@ -124,7 +124,7 @@ dnf -y install \
   kanshi wlr-randr wlopm swaybg swaylock swayidle \
   grim slurp swappy wl-clipboard \
   xdg-desktop-portal xdg-desktop-portal-wlr xdg-desktop-portal-gtk \
-  network-manager-applet copyq brightnessctl playerctl \
+  network-manager-applet copyq brightnessctl playerctl blueman \
   pavucontrol pulseaudio-utils btop yad ranger vlc qt5ct
 
 ### 4. Flatpak GUI apps (system-wide, alongside the ones already there)
@@ -134,6 +134,45 @@ flatpak install -y --noninteractive flathub \
   md.obsidian.Obsidian \
   it.mijorus.gearlever \
   com.usebruno.Bruno
+
+### 4.1 Citrix Workspace: WebKitGTK 4.0 for selfservice (the menu launcher)
+# Fedora dropped the WebKitGTK 4.0 ABI, so selfservice dies with
+# "libwebkit2gtk-4.0.so.37: cannot open shared object file". Citrix ships an
+# Ubuntu build of it (+ ICU 70) for this, and util/integrate.sh extracts it to
+# /usr/lib/x86_64-linux-gnu - on Fedora that alone is not enough:
+#   - the dir is not in the linker path;
+#   - the Ubuntu build needs libjpeg.so.8 (libjpeg 8 ABI). Fedora's libjpeg-turbo
+#     is the 6.2 ABI, a symlink would crash, so build libjpeg-turbo from
+#     Fedora's own source package with WITH_JPEG8=1.
+# Every soname in that dir (webkit2gtk-4.0, javascriptcoregtk-4.0, icu 70,
+# jpeg 8) is one Fedora does not ship, so nothing system-wide is shadowed.
+install_citrix_webkit40() {
+  # CTX_LIB only redirects a test run into a scratch root (skips ldconfig).
+  local ica=/opt/Citrix/ICAClient ctx_lib=${CTX_LIB:-/usr/lib/x86_64-linux-gnu}   # WebKit hardcodes its helper paths here
+  [[ -f $ica/Webkit2gtk4.0/webkit2gtk-4.0.tar.gz ]] || return 0
+  if [[ ! -e $ctx_lib/libwebkit2gtk-4.0.so.37 ]]; then
+    tar xzf "$ica/Webkit2gtk4.0/webkit2gtk-4.0.tar.gz" -C "${ctx_lib%/usr/lib/x86_64-linux-gnu}/" \
+      --strip-components=1 --no-same-owner webkit2gtk-4.0-package/usr/lib
+  fi
+  if [[ ! -e $ctx_lib/libjpeg.so.8 ]]; then
+    dnf -y install cmake nasm gcc make
+    local tmp; tmp=$(mktemp -d)
+    ( cd "$tmp"
+      dnf -q download --source libjpeg-turbo
+      rpm2cpio libjpeg-turbo-*.src.rpm | cpio -idm --quiet
+      tar xzf libjpeg-turbo-*.tar.gz
+      cmake -S libjpeg-turbo-*/ -B build -DCMAKE_BUILD_TYPE=Release \
+        -DWITH_JPEG8=1 -DENABLE_STATIC=0 -DWITH_TURBOJPEG=0 >/dev/null
+      make -C build -j"$(nproc)" jpeg >/dev/null
+      cp -P build/libjpeg.so.8* "$ctx_lib/" )
+    rm -rf "$tmp"
+  fi
+  if [[ -z ${CTX_LIB:-} ]]; then
+    echo /usr/lib/x86_64-linux-gnu > /etc/ld.so.conf.d/citrix-webkit2gtk4.0.conf
+    ldconfig
+  fi
+}
+install_citrix_webkit40
 
 ### 5. Fonts & wallpapers
 FONT_NAME="JetBrainsMono Nerd Font"
