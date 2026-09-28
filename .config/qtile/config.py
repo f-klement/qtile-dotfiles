@@ -1,4 +1,5 @@
 
+import gc
 import os
 import re
 import shutil
@@ -13,12 +14,16 @@ from qtile_extras import widget as xwidget
 from types import FunctionType
 
 mod = "mod4"
+
+# Backend = platform here: Wayland is the Fedora/Plasma laptop, X11 the EL VM.
+# (qtile sets core.name before loading the config.)
+WAYLAND = getattr(qtile.core, "name", None) == "wayland"
 terminal = "kitty"
 # Prefer the native RPM once installed; fall back to the flatpak until then.
 browser = "brave-browser" if shutil.which("brave-browser") else "flatpak run com.brave.Browser"
 editor  = "codium"
-files = "nautilus" if shutil.which("nautilus") else "dolphin"   # Fedora KDE ships dolphin
-notes = "flatpak run md.obsidian.Obsidian"
+files = "dolphin" if WAYLAND else "nautilus"   # Fedora KDE: dolphin; EL GNOME: nautilus
+notes = "flatpak run md.obsidian.Obsidian"   # not autostarted under Wayland (autostart_wayland.sh)
 
 # helpers
 def _physical_screen_order(qtile):
@@ -360,7 +365,7 @@ def init_widgets(include_systray=True, include_updates=True):
         ),
         widget.Memory(
             foreground = doom_colors[8],
-            format="{MemUsed:4.1f}G",   # e.g. “  7.6 G”
+            format="\U000f035b {MemUsed:4.1f}G",   # nf-md-memory (NF v3; the old U+F538 fell back to a Tibetan font)
             measure_mem="G",               # tell the widget we want GiB/GB
             update_interval=5,
         ),
@@ -381,7 +386,7 @@ def init_widgets(include_systray=True, include_updates=True):
     if include_systray:
         # XEmbed Systray is X11-only; on Wayland tray icons are StatusNotifierItems
         # (nm-applet --indicator, copyq, ...).
-        if qtile.core.name == "wayland":
+        if WAYLAND:
             widgets.append(widget.StatusNotifier(icon_size=12, padding=2))
         else:
             widgets.append(widget.Systray(icon_size=12, padding=2))
@@ -414,12 +419,13 @@ def init_widgets(include_systray=True, include_updates=True):
             text="⏻",
             padding=6,
             fontsize=16,
+            foreground="#000000" if THEME_MODE == "light" else "#ffffff",   # black on Dawn
             mouse_callbacks={
-                 # See system_reboot.sh.
+                 # Reboot or shut down, see system_power.sh.
                  "Button1": lazy.spawn([
                      terminal,
                      "-e",
-                     os.path.expanduser("~/.config/qtile/system_reboot.sh"),
+                     os.path.expanduser("~/.config/qtile/system_power.sh"),
                  ])}),
         widget.Spacer(length=4),
     ])
@@ -433,6 +439,9 @@ def generate_screens(outputs):
         GROUP_SCREEN[name] = SCREEN[role]
         if name in qtile.groups_map:
             qtile.groups_map[name].screen_affinity = SCREEN[role]
+    # After qtile has configured these screens: start, reload and hotplug alike
+    # (the screens_reconfigured hook would miss start and reload).
+    qtile.call_soon(repin_groups)
     return [
         Screen(top=bar.Bar(init_widgets(include_systray=(i == 0), include_updates=(i == 0)), 28, opacity=0.70))
         for i in range(len(outputs))
@@ -455,6 +464,21 @@ dgroups_app_rules = []  # type: list
 follow_mouse_focus = True
 bring_front_click = True
 floats_kept_above = True
+
+# Screenshot editor (bin/screenshot.sh gui on Wayland: slurp -> grim -> swappy).
+# slurp is a layer-shell overlay and always on top; swappy is a normal window,
+# so it gets floated, centred, raised above everything and focused (see
+# _keep_on_top) instead of landing behind the other apps.
+SCREENSHOT_EDITOR = Match(wm_class=re.compile(r"^(swappy|me\.jtheoof\.swappy)$"))
+
+# xdg-desktop-portal file pickers / save dialogs (flatpaks, browsers, ...).
+# qtile has no xdg-foreign, so they cannot attach to the app that opened them
+# and would otherwise be tiled as a normal window.
+PORTAL_DIALOG = Match(wm_class=re.compile(
+    r"^(xdg-desktop-portal-(gtk|kde)|org\.freedesktop\.impl\.portal\.desktop\.(gtk|kde))$"))
+
+# Floated, centred, raised above everything and focused (_keep_on_top).
+ON_TOP = [SCREENSHOT_EDITOR, PORTAL_DIALOG]
 cursor_warp = True
 floating_layout = layout.Floating(
     float_rules=[
@@ -477,6 +501,7 @@ floating_layout = layout.Floating(
         Match(title='Qalculate!'),        # qalculate-gtk
         Match(title="pinentry"),          # GPG key password entry
         Match(wm_class="rofi"),           # Rofi Launcher
+        *ON_TOP,                          # swappy, portal file dialogs
     ]
 )
 auto_fullscreen = True
@@ -497,6 +522,60 @@ except ImportError:
 wl_xcursor_theme = "BreezeX-RosePineDawn-Linux" if THEME_MODE == "light" else "BreezeX-RosePine-Linux"
 wl_xcursor_size = 24
 
+def repin_groups():
+    """Clean up after generate_screens replaced the Screen objects.
+
+    generate_screens returns fresh Screen objects on every change (kanshi
+    rotating the portrait panel, dock/undock, reload), but qtile's Screen.__eq__
+    calls two screens on the same output port EQUAL, whatever their geometry.
+    So qtile's own cleanup ("finalize screens not in new_screens") and
+    Group.set_screen ("already there") both skip the old objects:
+      - old bars stay alive and drawn (the pre-rotation 1920 px dark bar over
+        the portrait panel, clock frozen, widgets still polling);
+      - groups keep laying out for the old geometry (brave 1920 px wide on the
+        1200 px panel, spilling onto the next monitor).
+    So: finalize every bar that is not a live screen's bar (by identity), then
+    give every live screen exactly one group - its pinned group first - and lay
+    everything out again.
+    """
+    live = qtile.screens
+
+    live_bars = [g for s in live for g in s.gaps]
+    for b in [o for o in gc.get_objects() if isinstance(o, bar.Bar)]:
+        if b.window is not None and not any(b is lb for lb in live_bars):
+            b.finalize()
+
+    plan, taken = [], set()
+    for i, scr in enumerate(live):
+        cur = scr.group.name if scr.group else None
+        pinned = [n for n in GROUP_ROLE if GROUP_SCREEN[n] == i and n not in taken]
+        # own pinned group (keep the shown one if it is), then an unpinned
+        # leftover, then any free unpinned group
+        if cur in pinned:
+            name = cur
+        elif pinned:
+            name = pinned[0]
+        elif cur is not None and cur not in taken and cur not in GROUP_SCREEN:
+            name = cur
+        else:
+            name = next((g.name for g in qtile.groups
+                         if g.name not in taken and g.name not in GROUP_SCREEN), None)
+        if name is None:
+            continue
+        taken.add(name)
+        plan.append((scr, qtile.groups_map[name]))
+
+    for g in qtile.groups:
+        if g.screen is not None:
+            g.hide()
+    for scr, g in plan:
+        scr.group = g
+        g.set_screen(scr, warp=False)
+    if qtile.current_screen not in live:
+        qtile.focus_screen(0)
+    hook.fire("setgroup")
+
+
 @hook.subscribe.client_managed
 def follow_app_group(client):
     """Show the group of a newly opened FOLLOW_GROUPS app, on its pinned screen.
@@ -510,7 +589,7 @@ wmname = "LG3D"
 @hook.subscribe.startup_once
 def start_once():
     home = os.path.expanduser('~')
-    if qtile.core.name == "wayland":
+    if WAYLAND:
         autostart_script = os.path.join(home, '.config/qtile/autostart_wayland.sh')
     else:
         autostart_script = os.path.join(home, '.config/qtile/autostart_x11.sh')
@@ -553,6 +632,8 @@ _OPACITY_UNFOCUSED = 0.85
 def _apply_opacity(focused):
     for w in list(qtile.windows_map.values()):
         try:
+            if SCREENSHOT_EDITOR.compare(w):
+                continue   # stays opaque, see _keep_on_top
             w.opacity = _OPACITY_FOCUSED if w is focused else _OPACITY_UNFOCUSED
         except Exception:
             pass
@@ -567,6 +648,20 @@ def _opacity_on_managed(window):
         window.opacity = _OPACITY_UNFOCUSED
     except Exception:
         pass
+
+@hook.subscribe.client_managed
+def _keep_on_top(window):
+    if not any(m.compare(window) for m in ON_TOP):
+        return
+    if SCREENSHOT_EDITOR.compare(window):
+        window.opacity = 1.0
+    window.center()
+    # bring_to_front, not keep_above: on Wayland keep_above is a layer BELOW
+    # max-layout and fullscreen windows; bring-to-front sits above both, under
+    # the bar/notifications. qtile only re-layers a window on float-state
+    # changes, so it stays there while the window is open (dragging included).
+    window.bring_to_front()
+    window.focus()
 
 @hook.subscribe.startup_complete
 def _opacity_on_start():

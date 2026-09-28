@@ -67,6 +67,6 @@ swayidle -w \
 
 # User apps
 if command -v brave-browser >/dev/null 2>&1; then brave-browser & else flatpak run com.brave.Browser & fi
-flatpak run md.obsidian.Obsidian &
+# Obsidian is not autostarted here (Mod+O still opens it). File manager: dolphin, as in config.py.
 codium &
-if command -v nautilus >/dev/null 2>&1; then nautilus & else dolphin & fi
+dolphin &
