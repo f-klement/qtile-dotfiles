@@ -1,5 +1,6 @@
 
 import os
+import re
 import shutil
 import colors as color_mod
 import subprocess
@@ -16,7 +17,7 @@ terminal = "kitty"
 # Prefer the native RPM once installed; fall back to the flatpak until then.
 browser = "brave-browser" if shutil.which("brave-browser") else "flatpak run com.brave.Browser"
 editor  = "codium"
-files = "nautilus"
+files = "nautilus" if shutil.which("nautilus") else "dolphin"   # Fedora KDE ships dolphin
 notes = "flatpak run md.obsidian.Obsidian"
 
 # helpers
@@ -41,6 +42,10 @@ def _relative_screen(qtile, direction):
 @lazy.function
 def goto_group(qtile, name):
     """Switch to a group on its pinned screen (plain toscreen breaks pinning)."""
+    _show_group(qtile, name)
+
+
+def _show_group(qtile, name):
     target = GROUP_SCREEN.get(name)
     if target is not None and target < len(qtile.screens):
         qtile.groups_map[name].toscreen(target)
@@ -98,7 +103,7 @@ keys = [
      # new launch shortcuts
     Key([mod], "b", lazy.spawn(browser), desc="Launch browser"),
     Key([mod], "d", lazy.spawn(files),   desc="Launch file manager"),
-    Key([mod, "mod1"], "space", lazy.spawn("/usr/local/bin/rofi -show drun"), desc="Launch rofi"), 
+    Key([mod, "mod1"], "space", lazy.spawn("rofi -show drun"), desc="Launch rofi"),
     Key([mod], "e", lazy.spawn(editor), desc="Launch VSCodium"),
     Key([mod], "o", lazy.spawn(notes), desc="Launch Obsidian"),
     # screenshots (see bin/screenshot.sh for why not the flameshot daemon)
@@ -122,6 +127,13 @@ keys = [
         desc="Toggle fullscreen on the focused window",
     ),
     Key([mod], "space", lazy.window.toggle_floating(), desc="Toggle floating on the focused window"),
+    # laptop keys (absent on the EL VM, harmless there)
+    Key([], "XF86AudioRaiseVolume", lazy.spawn("pactl set-sink-volume @DEFAULT_SINK@ +5%"), desc="Volume up"),
+    Key([], "XF86AudioLowerVolume", lazy.spawn("pactl set-sink-volume @DEFAULT_SINK@ -5%"), desc="Volume down"),
+    Key([], "XF86AudioMute", lazy.spawn("pactl set-sink-mute @DEFAULT_SINK@ toggle"), desc="Mute"),
+    Key([], "XF86AudioMicMute", lazy.spawn("pactl set-source-mute @DEFAULT_SOURCE@ toggle"), desc="Mute mic"),
+    Key([], "XF86MonBrightnessUp", lazy.spawn("brightnessctl set 5%+"), desc="Brightness up"),
+    Key([], "XF86MonBrightnessDown", lazy.spawn("brightnessctl set 5%-"), desc="Brightness down"),
     Key([mod, "control"], "r", lazy.reload_config(), desc="Reload the config"),
     Key([mod, "control"], "q", lazy.shutdown(), desc="Shutdown Qtile"),
     Key([mod], "r", lazy.spawncmd(prompt="Run: "), desc="Spawn a command"),
@@ -144,50 +156,46 @@ for vt in range(1, 8):
     )
 
 # screen roles
-# Resolved from xrandr at load; index here == qtile screen index.
-def _detect_screen_roles():
-    import re
-    roles = {"small": 0, "portrait": 0, "landscape": 0}
-    try:
-        out = subprocess.check_output(["xrandr", "--query"]).decode()
-    except Exception:
-        return roles
-    mons = []
-    for line in out.splitlines():
-        m = re.match(r"^(\S+) connected (?:primary )?(\d+)x(\d+)\+(\d+)\+(\d+)", line)
-        if m:
-            w, h = int(m.group(2)), int(m.group(3))
-            mons.append({"w": w, "h": h, "x": int(m.group(4)), "area": w * h})
-    if not mons:
-        return roles
-    idx = list(range(len(mons)))
-    small = min(idx, key=lambda i: mons[i]["area"])          # built-in laptop panel
-    portrait = next((i for i in idx if mons[i]["h"] > mons[i]["w"]), small)
+# Resolved from the real outputs by generate_screens() below, which qtile calls
+# on start and on every hotplug with either backend (xrandr is not available to
+# the Wayland backend at config load). Index here == qtile screen index.
+SCREEN = {"small": 0, "portrait": 0, "landscape": 0}
+
+def _screen_roles(rects):
+    if not rects:
+        return {"small": 0, "portrait": 0, "landscape": 0}
+    idx = range(len(rects))
+    small = min(idx, key=lambda i: rects[i].width * rects[i].height)   # built-in laptop panel
+    portrait = next((i for i in idx if rects[i].height > rects[i].width), small)
     landscape = next((i for i in idx if i not in (small, portrait)), small)
     return {"small": small, "portrait": portrait, "landscape": landscape}
 
-SCREEN = _detect_screen_roles()
-
-# Which display each group lives on.
-GROUP_SCREEN = {
-    "1": SCREEN["portrait"],    # brave
-    "2": SCREEN["landscape"],   # codium
-    "5": SCREEN["small"],       # nautilus
-    "6": SCREEN["small"],       # obsidian
+# Which display each group lives on (role -> index via SCREEN).
+GROUP_ROLE = {
+    "1": "portrait",    # brave
+    "2": "landscape",   # codium
+    "5": "small",       # nautilus / dolphin
+    "6": "small",       # obsidian
 }
+GROUP_SCREEN = {name: SCREEN[role] for name, role in GROUP_ROLE.items()}
 
-# Spawn rules. wm_class from the RUNNING window, not .desktop (codium reports "codium").
+# Spawn rules. X11: wm_class of the RUNNING window (codium reports "codium").
+# Wayland: the app_id (brave-browser, codium, org.gnome.Nautilus, obsidian, ...).
 GROUP_MATCHES = {
-    "1": [Match(wm_class="brave-browser")],
+    "1": [Match(wm_class=re.compile(r"^(brave-browser|com\.brave\.Browser)$"))],
     "2": [Match(wm_class="codium")],
-    "5": [Match(wm_class="nautilus")],
-    "6": [Match(wm_class="md.obsidian.obsidian")],
+    "5": [Match(wm_class=re.compile(r"^(nautilus|org\.gnome\.Nautilus|org\.kde\.dolphin)$"))],
+    "6": [Match(wm_class=re.compile(r"^(md\.obsidian\.obsidian|obsidian)$"))],
+    "7": [Match(wm_class=re.compile(r"^(KeePassXC|keepassxc|org\.keepassxc\.KeePassXC)$"))],
 }
+
+# Groups whose apps also pull the view to them when they open (see follow_app_group).
+FOLLOW_GROUPS = {"1", "2", "7"}
 
 groups = []
 for _name in "123456789":
     _kw = {}
-    if _name in GROUP_SCREEN:
+    if _name in GROUP_SCREEN:  # re-pinned by generate_screens once outputs are known
         _kw["screen_affinity"] = GROUP_SCREEN[_name]
     if _name in GROUP_MATCHES:
         _kw["matches"] = GROUP_MATCHES[_name]
@@ -268,11 +276,14 @@ def power_menu(qtile):
     )
 
 
-def get_monitor_count():
-    output = subprocess.check_output(["xrandr", "--query"]).decode()
-    return sum(1 for line in output.splitlines() if " connected" in line)
-
-monitor_count = get_monitor_count()
+def _default_route_iface(fallback="eth0"):
+    """Interface of the lowest-metric default route (dock ethernet vs wifi on the laptop)."""
+    try:
+        with open("/proc/net/route") as f:
+            rows = [l.split() for l in f.readlines()[1:]]
+        return min((r for r in rows if r[1] == "00000000"), key=lambda r: int(r[6]))[0]
+    except (OSError, ValueError, IndexError):
+        return fallback
 
 def init_widgets(include_systray=True, include_updates=True):
     widgets = [
@@ -326,7 +337,7 @@ def init_widgets(include_systray=True, include_updates=True):
             },
         ),
         widget.Net(
-            interface="eth0",   # pin: avoids enumerating docker0/virbr0/veth* each poll
+            interface=_default_route_iface(),   # pin: avoids enumerating docker0/virbr0/veth* each poll
             # ▾/▴ are 1-char arrows from the Nerd-Font set
             format="{down:.0f}{down_suffix}▾{up:.0f}{up_suffix}▴",
             update_interval=5,
@@ -368,7 +379,12 @@ def init_widgets(include_systray=True, include_updates=True):
         ),
         ]
     if include_systray:
-        widgets.append(widget.Systray(icon_size=12, padding=2))
+        # XEmbed Systray is X11-only; on Wayland tray icons are StatusNotifierItems
+        # (nm-applet --indicator, copyq, ...).
+        if qtile.core.name == "wayland":
+            widgets.append(widget.StatusNotifier(icon_size=12, padding=2))
+        else:
+            widgets.append(widget.Systray(icon_size=12, padding=2))
     widgets.extend([
         widget.Spacer(length=3),
     ])
@@ -410,10 +426,17 @@ def init_widgets(include_systray=True, include_updates=True):
     return widgets
 
 
-screens = [
-    Screen(top=bar.Bar(init_widgets(include_systray=(i == 0), include_updates=(i == 0)), 28, opacity=0.70))
-    for i in range(monitor_count)
-]
+def generate_screens(outputs):
+    """One bar per output; also re-derives the screen roles and group pinning."""
+    SCREEN.update(_screen_roles([o.rect for o in outputs]))
+    for name, role in GROUP_ROLE.items():
+        GROUP_SCREEN[name] = SCREEN[role]
+        if name in qtile.groups_map:
+            qtile.groups_map[name].screen_affinity = SCREEN[role]
+    return [
+        Screen(top=bar.Bar(init_widgets(include_systray=(i == 0), include_updates=(i == 0)), 28, opacity=0.70))
+        for i in range(len(outputs))
+    ]
 
 Drag([mod], "Button1", lazy.window.set_position_floating(),
      start=lazy.window.get_position()),
@@ -462,49 +485,25 @@ reconfigure_screens = True
 
 auto_minimize = True
 
-wl_input_rules = None
+# Wayland input (ignored on X11). Keyboard layout comes from XKB_DEFAULT_* which
+# bin/starting-qtile-wayland.sh derives from localectl.
+try:
+    from libqtile.backend.wayland import InputConfig
+    wl_input_rules = {"type:touchpad": InputConfig(tap=True, dwt=True, natural_scroll=False)}
+except ImportError:
+    wl_input_rules = None
 
-# xcursor theme (string or None) and size (integer) for Wayland backend
-wl_xcursor_theme = "Dracula"
+# Wayland cursor (X11 reads XCURSOR_THEME / ~/.icons/default), follows theme.sh.
+wl_xcursor_theme = "BreezeX-RosePineDawn-Linux" if THEME_MODE == "light" else "BreezeX-RosePine-Linux"
 wl_xcursor_size = 24
 
-@hook.subscribe.client_new
-def assign_app_group(client):
-    """
-    Automatically move windows to designated groups based on their WM_CLASS.
-    Run `xprop | grep WM_CLASS` in a terminal and click on a window
-    to find its wm_class.
-    """
-
-    d = {
-        "Brave-browser": ("1", "switch"),  
-        "VSCodium":      ("2", "switch"),  
-        "obsidian":      ("5", None),       
-        "Nautilus":      ("6", None), 
-        "KeePassXC":     ("7", "switch")     
-    }
-
-    try:
-
-        wm_class_tuple = client.window.get_wm_class()
-        if not wm_class_tuple:
-            return
-        matched_key = None
-        for item in wm_class_tuple:
-            if item in d:
-                matched_key = item
-                break
-        
-        if matched_key:
-            group_name, option = d[matched_key]
-            
-            client.togroup(group_name)
-
-            if option == "switch":
-                qtile.groups_map[group_name].toscreen()
-
-    except (IndexError, TypeError):
-        return  # Not all windows have a wm_class
+@hook.subscribe.client_managed
+def follow_app_group(client):
+    """Show the group of a newly opened FOLLOW_GROUPS app, on its pinned screen.
+    Placement itself is GROUP_MATCHES; client_managed fires after it has run."""
+    group = getattr(client, "group", None)
+    if group is not None and group.name in FOLLOW_GROUPS:
+        _show_group(qtile, group.name)
 
 wmname = "LG3D"
 

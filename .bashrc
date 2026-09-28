@@ -69,6 +69,22 @@ alias qconf='vim ~/.config/qtile/config.py'
 alias qvalid='( source ~/.local/venvs/qtile/bin/activate && qtile check )'
 alias qlogs='tail -f ~/.local/share/qtile/qtile.log'
 alias qstart='~/.local/venvs/qtile/bin/qtile start'
+alias dnfu='sudo dnf update -y; sudo flatpak update -y; sudo snap refresh'
+alias dc='docker-compose'
+
+# Load opencode provider API keys (systemd also loads this via environment.d
+# for graphical sessions; this covers non-graphical / ssh shells).
+if [ -f ~/.config/environment.d/opencode-keys.conf ]; then
+    set -a
+    . ~/.config/environment.d/opencode-keys.conf
+    set +a
+fi
+
+# User specific environment
+if ! [[ "$PATH" =~ "$HOME/.local/bin:$HOME/bin:" ]]; then
+    PATH="$HOME/.local/bin:$HOME/bin:$PATH"
+fi
+export PATH
 
 if [ -f ~/.bash_aliases ]; then
     . ~/.bash_aliases

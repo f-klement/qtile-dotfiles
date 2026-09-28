@@ -4,6 +4,9 @@ Exec=/home/admin/bin/starting-qtile.sh
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
+# Only inside the EL gnome-session (it exports XDG_CURRENT_DESKTOP=GNOME). Without
+# this, Plasma on the Fedora laptop runs it too and starts X11 qtile on KWin's Xwayland.
+OnlyShowIn=GNOME;
 Name=Start Qtile
 Comment=Start Qtile window manager after GNOME session login
 
