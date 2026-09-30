@@ -44,8 +44,13 @@ for agent in /usr/libexec/kf6/polkit-kde-authentication-agent-1 \
   [ -x "$agent" ] && { "$agent" & break; }
 done
 
-# Secrets: KWallet (ksecretd) is D-Bus activated and unlocked by pam_kwallet at
-# the SDDM login, the same wallet the Plasma session uses. Nothing to start.
+# Secrets: KWallet is D-Bus activated, but pam_kwallet5.so only opens a socket
+# (kwallet5.socket) with the login password at SDDM auth time - it still needs
+# pam_kwallet_init to read the env var it sets (PAM_KWALLET5_LOGIN) and forward
+# it over that socket. Plasma sessions do this via plasma-kwallet-pam.service,
+# which never runs here since we're not a Plasma session. Without it kdewallet
+# stays locked and every app prompts for its password on first use.
+/usr/libexec/pam_kwallet_init &
 
 # Tray (StatusNotifier in the bar; nm-applet needs --indicator for SNI).
 nm-applet --indicator &

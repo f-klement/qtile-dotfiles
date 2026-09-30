@@ -98,10 +98,24 @@ export PATH="$BUN_INSTALL/bin:$PATH"
 alias kubectl="minikube kubectl --"
 
 [ -f ~/.fzf.bash ] && source ~/.fzf.bash
-. "$HOME/.cargo/env"
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"
 
 # Generated for envman. Do not edit.
 [ -s "$HOME/.config/envman/load.sh" ] && source "$HOME/.config/envman/load.sh"
 
 # Maschinenlokale Werte (Secrets, interne Hosts/IPs), nicht im Repo.
 [ -f ~/.bashrc.local ] && source ~/.bashrc.local
+
+# Start/attach/stop the debian-work VM's virtio multihead SPICE session.
+# Migrated from the old host's ~/.zshrc via debian-work-export.tar.zst.
+work() {
+    local vm=debian-work uri=qemu:///system
+    case "$1" in
+        stop)   virsh -c $uri shutdown $vm ;;
+        status) virsh -c $uri domstate $vm ;;
+        *)
+            [ "$(virsh -c $uri domstate $vm)" = running ] || virsh -c $uri start $vm
+            virt-viewer --connect $uri --attach --full-screen --wait --reconnect $vm & disown
+            ;;
+    esac
+}
