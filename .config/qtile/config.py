@@ -6,7 +6,7 @@ import shutil
 import colors as color_mod
 import subprocess
 from zoneinfo import ZoneInfo 
-from libqtile import bar, layout, qtile, widget, hook
+from libqtile import bar, confreader, layout, qtile, widget, hook
 from libqtile.config import Click, Drag, Group, Key, Match, Screen
 from libqtile.lazy import lazy
 from libqtile.utils import guess_terminal, logger
@@ -604,9 +604,9 @@ def init_widgets(include_systray=True, include_updates=True):
     return widgets
 
 
-def generate_screens(outputs):
+def _build_screens(rects):
     """One bar per output; also re-derives the screen roles and group pinning."""
-    SCREEN.update(_screen_roles([o.rect for o in outputs]))
+    SCREEN.update(_screen_roles(rects))
     for name, role in GROUP_ROLE.items():
         GROUP_SCREEN[name] = SCREEN[role]
         if name in qtile.groups_map:
@@ -616,8 +616,23 @@ def generate_screens(outputs):
     qtile.call_soon(repin_groups)
     return [
         Screen(top=bar.Bar(init_widgets(include_systray=(i == 0), include_updates=(i == 0)), 28, opacity=0.70))
-        for i in range(len(outputs))
+        for i in range(max(1, len(rects)))
     ]
+
+
+def generate_screens(outputs):
+    """qtile >= 0.35 calls this on start and on every output change."""
+    return _build_screens([o.rect for o in outputs])
+
+
+# generate_screens() is a qtile 0.35 API; EL8's venv is on 0.31, which ignores
+# it and then finds no `screens` at all, so every output comes up as a bare
+# Screen() with no bar. On those versions build the list eagerly instead, from
+# the outputs the core already knows about (xrandr is not needed for this, so it
+# works on either backend). Probe the config API rather than a version string:
+# libqtile exports no __version__.
+if "generate_screens" not in getattr(confreader.Config, "__annotations__", {}):
+    screens = _build_screens(list(qtile.core.get_screen_info()))
 
 Drag([mod], "Button1", lazy.window.set_position_floating(),
      start=lazy.window.get_position()),
