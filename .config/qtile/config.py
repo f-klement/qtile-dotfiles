@@ -756,6 +756,18 @@ def repin_groups():
     """
     live = qtile.screens
 
+    # Same __eq__ quirk, one level up: on a reload qtile points current_screen
+    # at the Screen object _build_screens just returned, while keeping the old,
+    # equal-looking object in qtile.screens. The two then diverge --
+    # current_screen carries the bar that was never configured, so `in` says it
+    # is live while `is` says it is not, and every lazy command that goes
+    # through current_screen (group switching included) acts on that phantom
+    # instead of the screen in front of you. Re-point it, by identity, at the
+    # object qtile actually kept.
+    if not any(qtile.current_screen is s for s in live):
+        _i = getattr(qtile.current_screen, "index", 0) or 0
+        qtile.current_screen = live[_i] if _i < len(live) else live[0]
+
     live_bars = [g for s in live for g in s.gaps]
     for b in [o for o in gc.get_objects() if isinstance(o, bar.Bar)]:
         if b.window is not None and not any(b is lb for lb in live_bars):
