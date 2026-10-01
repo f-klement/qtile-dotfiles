@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Desktop-wide light/dark switch: Rosé Pine (dark) <-> Rosé Pine Dawn (light).
 #   theme.sh toggle|dark|light   switch, re-theme everything, nudge running apps
-#   theme.sh apply               re-apply the saved mode (autostart_x11.sh)
+#   theme.sh apply               re-apply the saved mode (autostart_x11.sh / autostart_wayland.sh)
 #   theme.sh status              print "dark" or "light"
 # The mode lives in $XDG_STATE_HOME/theme-mode; qtile's config.py reads the same
 # file to pick its palette and the sun/moon icon in the bar.
@@ -11,10 +11,11 @@
 #   GTK2/3 + Chromium   gsettings -> gsd-xsettings/XSETTINGS (live), settings.ini/gtkrc fallback
 #   GTK4/libadwaita     gtk-4.0/gtk.css + settings.ini (new windows)
 #   Qt5 native          qt5ct.conf + colors/<theme>.conf (next start)
-#   Qt on KDE runtime   ~/.config/kdeglobals (next start)
+#   Qt on KDE runtime   ~/.config/kdeglobals (next start; merged, not replaced)
 #   kitty               current-theme.conf -> SIGUSR1 (live)
 #   rofi / dunst        colors.rasi / dunstrc.d (live, dunstctl reload)
-#   i3lock-color        i3lock/current.conf, sourced by the lock script (next lock)
+#   i3lock-color        i3lock/current.conf, sourced by the lock script (X11, next lock)
+#   swaylock            swaylock/config (Wayland, next lock)
 #   cursor              gsettings + ~/.icons/default + root window
 #   Claude Code         ~/.claude/settings.json theme -> custom:<theme> (~/.claude/themes)
 #   VSCodium, Obsidian  their own settings files (apps re-read them themselves)
@@ -68,13 +69,51 @@ put    "$C/kitty/$THEME.conf"          "$C/kitty/current-theme.conf"
 put    "$C/rofi/colors-$THEME.rasi"    "$C/rofi/colors.rasi"
 mkdir -p "$C/dunst/dunstrc.d"
 put    "$C/dunst/colors-$THEME.conf"   "$C/dunst/dunstrc.d/50-colors.conf"
+put    "$C/swaylock/$THEME.conf"       "$C/swaylock/config"
 put    "$C/gtk-4.0/gtk-$THEME.css"     "$C/gtk-4.0/gtk.css"
-put    "$C/kdeglobals.$THEME"          "$C/kdeglobals"
 put    "$C/i3lock/$THEME.conf"         "$C/i3lock/current.conf"
 render "$C/gtk-3.0/settings.ini.in"    "$C/gtk-3.0/settings.ini"
 render "$C/gtk-4.0/settings.ini.in"    "$C/gtk-4.0/settings.ini"
 render "$C/qt5ct/qt5ct.conf.in"        "$C/qt5ct/qt5ct.conf"
 render "$HOME/.gtkrc-2.0.in"           "$HOME/.gtkrc-2.0"
+
+# kdeglobals: MERGE the theme's keys instead of replacing the file. On a box that
+# also runs Plasma it holds Plasma's fonts, widget style, shortcuts etc.; only
+# the keys the theme sets are overwritten, everything else survives.
+python3 - "$C/kdeglobals.$THEME" "$C/kdeglobals" <<'PY'
+import os, re, sys
+
+def parse(path):
+    secs, cur = {}, None
+    try:
+        lines = open(path).read().splitlines()
+    except FileNotFoundError:
+        return secs
+    for line in lines:
+        if re.match(r"^\[.*\]\s*$", line):
+            cur = secs.setdefault(line.strip(), {})
+        elif cur is not None and "=" in line and not line.lstrip().startswith("#"):
+            k, v = line.split("=", 1)
+            cur[k] = v
+    return secs
+
+theme, target = sys.argv[1], sys.argv[2]
+merged = parse(target)
+for sec, kv in parse(theme).items():
+    merged.setdefault(sec, {}).update(kv)
+if os.path.islink(target):
+    os.remove(target)
+with open(target, "w") as f:
+    for sec, kv in merged.items():
+        f.write(sec + "\n" + "".join(f"{k}={v}\n" for k, v in kv.items()) + "\n")
+PY
+
+# Plasma's kde-gtk-config writes gtk-3.0/gtk.css = "@import 'colors.css';",
+# which paints the KDE colour scheme over the GTK theme. Neutralise it (Plasma
+# rewrites it at its next login); a real user gtk.css is left alone.
+if grep -qx "@import 'colors.css';" "$C/gtk-3.0/gtk.css" 2>/dev/null; then
+    : > "$C/gtk-3.0/gtk.css"
+fi
 
 # GTK: gsd-xsettings turns these into XSETTINGS for every GTK/Chromium/Electron
 # app, including ones launched later from rofi. Theme name MUST be a ~/.themes
@@ -92,7 +131,8 @@ gsettings set org.gnome.desktop.interface color-scheme "prefer-$MODE" 2>/dev/nul
 mkdir -p "$HOME/.icons/default"
 printf '[Icon Theme]\nName=Default\nComment=Default Cursor Theme\nInherits=%s\n' "$CURSOR_THEME" \
     > "$HOME/.icons/default/index.theme"
-[ -n "${DISPLAY:-}" ] && XCURSOR_THEME=$CURSOR_THEME xsetroot -cursor_name left_ptr || true
+# (X11 only; qtile's Wayland backend takes wl_xcursor_theme from config.py.)
+[ -n "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ] && XCURSOR_THEME=$CURSOR_THEME xsetroot -cursor_name left_ptr || true
 
 # Claude Code: custom themes from ~/.claude/themes (stowed). settings.json is
 # strict JSON, so round-trip it instead of sed.
@@ -135,7 +175,9 @@ PY
 # Nudge what is already running (apply at session start has nothing to nudge).
 dunstctl reload 2>/dev/null || true
 pkill -USR1 -x kitty 2>/dev/null || true
+# EL: venv qtile; Fedora: the RPM's /usr/bin/qtile.
 QTILE="$HOME/.local/venvs/qtile/bin/qtile"
-if [ -x "$QTILE" ] && pgrep -f "$QTILE start" >/dev/null; then
+[ -x "$QTILE" ] || QTILE="$(command -v qtile || true)"
+if [ -n "$QTILE" ] && pgrep -f "$QTILE start" >/dev/null; then
     "$QTILE" cmd-obj -o cmd -f reload_config >/dev/null 2>&1 || true
 fi

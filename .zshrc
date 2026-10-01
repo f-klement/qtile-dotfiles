@@ -180,3 +180,20 @@ export COMPOSE_DOCKER_CLI_BUILD=0
 
 # Maschinenlokale Werte (Secrets, interne Hosts/IPs), nicht im Repo.
 [ -f ~/.zshrc.local ] && source ~/.zshrc.local
+
+# Go toolchain's own GOPATH/bin (go install puts binaries here, e.g. bootdev)
+export PATH="$HOME/go/bin:$PATH"
+
+# Start/attach/stop the debian-work VM's virtio multihead SPICE session.
+# Migrated from the old host's ~/.zshrc via debian-work-export.tar.zst.
+work() {
+    local vm=debian-work uri=qemu:///system
+    case "$1" in
+        stop)   virsh -c $uri shutdown $vm ;;
+        status) virsh -c $uri domstate $vm ;;
+        *)
+            [ "$(virsh -c $uri domstate $vm)" = running ] || virsh -c $uri start $vm
+            virt-viewer --connect $uri --attach --full-screen --wait --reconnect $vm & disown
+            ;;
+    esac
+}

@@ -28,6 +28,14 @@ xprop -root -set _NET_WM_DESKTOP_ENVIRONMENT "Qtile"
 export XDG_CURRENT_DESKTOP=Qtile
 export DESKTOP_SESSION=qtile
 
+# Secrets: KWallet is D-Bus activated, but pam_kwallet5.so only opens a socket
+# (kwallet5.socket) with the login password at SDDM auth time - it still needs
+# pam_kwallet_init to read the env var it sets (PAM_KWALLET5_LOGIN) and forward
+# it over that socket. Plasma sessions do this via plasma-kwallet-pam.service,
+# which never runs here since we're not a Plasma session. Without it kdewallet
+# stays locked and every app prompts for its password on first use.
+/usr/libexec/pam_kwallet_init &
+
 # Tray
 nm-applet &
 copyq &

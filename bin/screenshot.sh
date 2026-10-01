@@ -1,11 +1,27 @@
 #!/usr/bin/env bash
-# Screenshots on this xrdp/Xvnc desktop.
-#   gui  - flameshot region selector   full - whole screen -> ~/Pictures   clip - -> clipboard
+# Screenshots.  gui - select region   full - whole screen -> ~/Pictures   clip - -> clipboard
+# Wayland: grim (+ slurp to pick the region, swappy to annotate/save/copy).
+# X11 (the xrdp/Xvnc desktop): flameshot for gui, ImageMagick for full/clip.
 # Gotchas: flameshot's resident daemon caches the (xrdp-changing) geometry -> kill &
 # start fresh each time. Its portal modes need gnome-shell (dead) -> use ImageMagick
 # for full/clip. flameshot 14 gui also needs useX11LegacyScreenshot=true in its ini
 # (~/.var, not stowed), so assert that key before each launch.
 mode="${1:-gui}"
+
+if [ -n "${WAYLAND_DISPLAY:-}" ]; then
+  out="$HOME/Pictures/screenshot-$(date +%Y%m%d-%H%M%S).png"
+  case "$mode" in
+    gui)  region=$(slurp) || exit 0   # Esc cancels
+          grim -g "$region" - | swappy -f - ;;
+    full) grim "$out" && notify-send -i camera-photo "Screenshot saved" "$out" ;;
+    clip) grim - | wl-copy --type image/png \
+            && notify-send -i camera-photo "Screenshot" "copied to clipboard" ;;
+    *) echo "usage: $0 [gui|full|clip]" >&2; exit 2 ;;
+  esac
+  exit
+fi
+
+# X11 from here.
 ini="$HOME/.var/app/org.flameshot.Flameshot/config/flameshot/flameshot.ini"
 ensure_x11_legacy() {
   grep -qx 'useX11LegacyScreenshot=true' "$ini" 2>/dev/null && return

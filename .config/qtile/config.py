@@ -1,5 +1,7 @@
 
+import gc
 import os
+import re
 import shutil
 import colors as color_mod
 import subprocess
@@ -12,12 +14,16 @@ from qtile_extras import widget as xwidget
 from types import FunctionType
 
 mod = "mod4"
+
+# Backend = platform here: Wayland is the Fedora/Plasma laptop, X11 the EL VM.
+# (qtile sets core.name before loading the config.)
+WAYLAND = getattr(qtile.core, "name", None) == "wayland"
 terminal = "kitty"
 # Prefer the native RPM once installed; fall back to the flatpak until then.
 browser = "brave-browser" if shutil.which("brave-browser") else "flatpak run com.brave.Browser"
 editor  = "codium"
-files = "nautilus"
-notes = "flatpak run md.obsidian.Obsidian"
+files = "dolphin" if WAYLAND else "nautilus"   # Fedora KDE: dolphin; EL GNOME: nautilus
+notes = "flatpak run md.obsidian.Obsidian"   # not autostarted under Wayland (autostart_wayland.sh)
 
 # helpers
 def _physical_screen_order(qtile):
@@ -41,6 +47,10 @@ def _relative_screen(qtile, direction):
 @lazy.function
 def goto_group(qtile, name):
     """Switch to a group on its pinned screen (plain toscreen breaks pinning)."""
+    _show_group(qtile, name)
+
+
+def _show_group(qtile, name):
     target = GROUP_SCREEN.get(name)
     if target is not None and target < len(qtile.screens):
         qtile.groups_map[name].toscreen(target)
@@ -98,7 +108,7 @@ keys = [
      # new launch shortcuts
     Key([mod], "b", lazy.spawn(browser), desc="Launch browser"),
     Key([mod], "d", lazy.spawn(files),   desc="Launch file manager"),
-    Key([mod, "mod1"], "space", lazy.spawn("/usr/local/bin/rofi -show drun"), desc="Launch rofi"), 
+    Key([mod, "mod1"], "space", lazy.spawn("rofi -show drun"), desc="Launch rofi"),
     Key([mod], "e", lazy.spawn(editor), desc="Launch VSCodium"),
     Key([mod], "o", lazy.spawn(notes), desc="Launch Obsidian"),
     # screenshots (see bin/screenshot.sh for why not the flameshot daemon)
@@ -122,6 +132,16 @@ keys = [
         desc="Toggle fullscreen on the focused window",
     ),
     Key([mod], "space", lazy.window.toggle_floating(), desc="Toggle floating on the focused window"),
+    # laptop keys (absent on the EL VM, harmless there)
+    Key([], "XF86AudioRaiseVolume", lazy.spawn("pactl set-sink-volume @DEFAULT_SINK@ +5%"), desc="Volume up"),
+    Key([], "XF86AudioLowerVolume", lazy.spawn("pactl set-sink-volume @DEFAULT_SINK@ -5%"), desc="Volume down"),
+    Key([], "XF86AudioMute", lazy.spawn("pactl set-sink-mute @DEFAULT_SINK@ toggle"), desc="Mute"),
+    Key([], "XF86AudioMicMute", lazy.spawn("pactl set-source-mute @DEFAULT_SOURCE@ toggle"), desc="Mute mic"),
+    Key([], "XF86MonBrightnessUp", lazy.spawn("brightnessctl set 5%+"), desc="Brightness up"),
+    Key([], "XF86MonBrightnessDown", lazy.spawn("brightnessctl set 5%-"), desc="Brightness down"),
+    # Lock: logind broadcasts it and the session's listener runs the themed
+    # locker (swayidle -> swaylock on Wayland, xss-lock -> i3lock on X11).
+    Key([mod], "l", lazy.spawn("loginctl lock-session"), desc="Lock the screen"),
     Key([mod, "control"], "r", lazy.reload_config(), desc="Reload the config"),
     Key([mod, "control"], "q", lazy.shutdown(), desc="Shutdown Qtile"),
     Key([mod], "r", lazy.spawncmd(prompt="Run: "), desc="Spawn a command"),
@@ -144,50 +164,56 @@ for vt in range(1, 8):
     )
 
 # screen roles
-# Resolved from xrandr at load; index here == qtile screen index.
-def _detect_screen_roles():
-    import re
-    roles = {"small": 0, "portrait": 0, "landscape": 0}
-    try:
-        out = subprocess.check_output(["xrandr", "--query"]).decode()
-    except Exception:
-        return roles
-    mons = []
-    for line in out.splitlines():
-        m = re.match(r"^(\S+) connected (?:primary )?(\d+)x(\d+)\+(\d+)\+(\d+)", line)
-        if m:
-            w, h = int(m.group(2)), int(m.group(3))
-            mons.append({"w": w, "h": h, "x": int(m.group(4)), "area": w * h})
-    if not mons:
-        return roles
-    idx = list(range(len(mons)))
-    small = min(idx, key=lambda i: mons[i]["area"])          # built-in laptop panel
-    portrait = next((i for i in idx if mons[i]["h"] > mons[i]["w"]), small)
+# Resolved from the real outputs by generate_screens() below, which qtile calls
+# on start and on every hotplug with either backend (xrandr is not available to
+# the Wayland backend at config load). Index here == qtile screen index.
+SCREEN = {"small": 0, "portrait": 0, "landscape": 0}
+
+def _screen_roles(rects):
+    if not rects:
+        return {"small": 0, "portrait": 0, "landscape": 0}
+    idx = range(len(rects))
+    small = min(idx, key=lambda i: rects[i].width * rects[i].height)   # built-in laptop panel
+    portrait = next((i for i in idx if rects[i].height > rects[i].width), small)
     landscape = next((i for i in idx if i not in (small, portrait)), small)
     return {"small": small, "portrait": portrait, "landscape": landscape}
 
-SCREEN = _detect_screen_roles()
-
-# Which display each group lives on.
-GROUP_SCREEN = {
-    "1": SCREEN["portrait"],    # brave
-    "2": SCREEN["landscape"],   # codium
-    "5": SCREEN["small"],       # nautilus
-    "6": SCREEN["small"],       # obsidian
+# Which display each group lives on (role -> index via SCREEN).
+GROUP_ROLE = {
+    "1": "portrait",    # brave
+    "2": "landscape",   # codium
+    "5": "small",       # nautilus / dolphin
+    "6": "small",       # obsidian
+    "9": "landscape",   # citrix (the monitor Citrix itself picks for this layout)
 }
+GROUP_SCREEN = {name: SCREEN[role] for name, role in GROUP_ROLE.items()}
 
-# Spawn rules. wm_class from the RUNNING window, not .desktop (codium reports "codium").
+# Citrix Workspace session (wfica, X11 via Xwayland). Spanning several monitors
+# needs _NET_WM_FULLSCREEN_MONITORS, which the wlroots Xwayland WM does not
+# offer (wfica logs "multi-monitor is not supported by current window
+# manager"), so the session runs fullscreen on ONE monitor in its own group 9.
+# Its splash/login/error/reconnect dialogs are Wfica_* and float on top (ON_TOP).
+CITRIX_SESSION = Match(wm_class=re.compile(r"^[Ww]fica$"))
+CITRIX_DIALOG = Match(wm_class=re.compile(r"^Wfica_"))
+
+# Spawn rules. X11: wm_class of the RUNNING window (codium reports "codium").
+# Wayland: the app_id (brave-browser, codium, org.gnome.Nautilus, obsidian, ...).
 GROUP_MATCHES = {
-    "1": [Match(wm_class="brave-browser")],
+    "1": [Match(wm_class=re.compile(r"^(brave-browser|com\.brave\.Browser)$"))],
     "2": [Match(wm_class="codium")],
-    "5": [Match(wm_class="nautilus")],
-    "6": [Match(wm_class="md.obsidian.obsidian")],
+    "5": [Match(wm_class=re.compile(r"^(nautilus|org\.gnome\.Nautilus|org\.kde\.dolphin)$"))],
+    "6": [Match(wm_class=re.compile(r"^(md\.obsidian\.obsidian|obsidian)$"))],
+    "7": [Match(wm_class=re.compile(r"^(KeePassXC|keepassxc|org\.keepassxc\.KeePassXC)$"))],
+    "9": [CITRIX_SESSION],
 }
+
+# Groups whose apps also pull the view to them when they open (see follow_app_group).
+FOLLOW_GROUPS = {"1", "2", "7", "9"}
 
 groups = []
 for _name in "123456789":
     _kw = {}
-    if _name in GROUP_SCREEN:
+    if _name in GROUP_SCREEN:  # re-pinned by generate_screens once outputs are known
         _kw["screen_affinity"] = GROUP_SCREEN[_name]
     if _name in GROUP_MATCHES:
         _kw["matches"] = GROUP_MATCHES[_name]
@@ -250,8 +276,15 @@ extension_defaults = widget_defaults.copy()
 # helpers
 @lazy.function
 def toggle_vol_text(qtile):
-    w = qtile.widgets_map["pulsevolume"]
-    w.fmt = "" if w.fmt.endswith("{}") else " {}"   # no percent sign
+    # Every live bar's volume widget, not widgets_map["pulsevolume"]: after a
+    # screen rebuild that name belongs to a dead widget (new ones get _N).
+    for w in [w for s in qtile.screens if s.top for w in s.top.widgets
+              if isinstance(w, widget.PulseVolume)]:
+        _toggle_one_vol(w)
+
+
+def _toggle_one_vol(w):
+    w.fmt ="" if w.fmt.endswith("{}") else " {}"   # no percent sign
     w.bar.draw()
     
 @lazy.function
@@ -268,11 +301,144 @@ def power_menu(qtile):
     )
 
 
-def get_monitor_count():
-    output = subprocess.check_output(["xrandr", "--query"]).decode()
-    return sum(1 for line in output.splitlines() if " connected" in line)
+def _default_route_iface(fallback="eth0"):
+    """Interface of the lowest-metric default route (dock ethernet vs wifi on the laptop)."""
+    try:
+        with open("/proc/net/route") as f:
+            rows = [l.split() for l in f.readlines()[1:]]
+        return min((r for r in rows if r[1] == "00000000"), key=lambda r: int(r[6]))[0]
+    except (OSError, ValueError, IndexError):
+        return fallback
 
-monitor_count = get_monitor_count()
+def _run(*cmd):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=3).stdout
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+class _StateIcon(widget.GenPollText):
+    """Icon whose glyph and colour follow probe() -> state key in STATES."""
+    STATES = {}
+
+    def __init__(self, **config):
+        # Start in the theme colour: _TextBox bakes foreground into its text
+        # layout at configure time (default white - invisible on Dawn).
+        config.setdefault("foreground", next(iter(self.STATES.values()))[1])
+        super().__init__(func=self._render, **config)
+
+    def probe(self):
+        raise NotImplementedError
+
+    def label(self, state):
+        """Extra text after the glyph (none by default)."""
+        return ""
+
+    def update(self, text):
+        # _TextBox.update() skips the redraw when the text is unchanged, but the
+        # state may only have changed colour (bluetooth off/on/connected share
+        # one glyph) - redraw then too.
+        recoloured = getattr(self, "_drawn_colour", None) != self.foreground
+        super().update(text)
+        if recoloured and self.text == text and self.can_draw():
+            self.draw()
+        self._drawn_colour = self.foreground
+
+    def _render(self):
+        state = self.probe()
+        glyph, colour = self.STATES[state]
+        # Setting self.foreground alone never reaches the drawn text; recolour
+        # the layout like qtile's own widgets (df, chord) do.
+        self.foreground = colour
+        if getattr(self, "layout", None) is not None:
+            self.layout.colour = colour
+        return glyph + self.label(state)
+
+    def act(self, *cmds):
+        """Run commands in order off the event loop (qtile IS the compositor on
+        Wayland: a blocking call freezes the screen), then redraw right away."""
+        def work():
+            for cmd in cmds:
+                _run(*cmd)
+
+        def run():
+            fut = qtile.run_in_executor(work)
+            fut.add_done_callback(lambda _: qtile.call_soon_threadsafe(self.force_update))
+        return run
+
+
+class MicIcon(_StateIcon):
+    """Default PipeWire source, same design as the volume widget: icon only,
+    left click shows "<icon> 35%" ("M" when muted), middle mixer (inputs tab),
+    right mute, wheel +-5 %."""
+    STATES = {
+        # Font Awesome, like the volume widget's \uf028 (same family and size)
+        "on":    ("\uf130", doom_colors[7][0]),   # fa-microphone
+        "muted": ("\uf131", doom_colors[9][0]),   # fa-microphone-slash
+        "none":  ("\uf131", doom_colors[9][0]),
+    }
+    SRC = "@DEFAULT_AUDIO_SOURCE@"
+
+    def __init__(self, **config):
+        self.show_level = False
+        self._level = None
+        config.setdefault("mouse_callbacks", {
+            "Button1": self._toggle_level,
+            "Button2": lazy.spawn("pavucontrol -t 4"),                 # mixer, input devices tab
+            "Button3": self.act(("wpctl", "set-mute", self.SRC, "toggle")),
+            "Button4": self.act(("wpctl", "set-volume", "-l", "1.0", self.SRC, "5%+")),
+            "Button5": self.act(("wpctl", "set-volume", self.SRC, "5%-")),
+        })
+        super().__init__(**config)
+
+    def probe(self):
+        out = _run("wpctl", "get-volume", self.SRC)            # "Volume: 0.35 [MUTED]"
+        try:
+            self._level = round(float(out.split()[1]) * 100)
+        except (IndexError, ValueError):
+            self._level = None
+        return "none" if not out else ("muted" if "MUTED" in out else "on")
+
+    def label(self, state):
+        # PulseVolume's unmute_format "{volume}%" / mute_format "M"
+        if not self.show_level or self._level is None:
+            return ""
+        return " M" if state == "muted" else f" {self._level}%"
+
+    def _toggle_level(self):
+        self.show_level = not self.show_level
+        self.force_update()
+
+
+class BluetoothIcon(_StateIcon):
+    """Adapter state: left click switches the radio, right click opens blueman."""
+    STATES = {
+        # Font Awesome fa-bluetooth-b, like the volume/mic icons; FA has no
+        # "off" variant, so the state is the colour: muted / pine / foam.
+        "off":       ("\uf294", doom_colors[9][0]),
+        "on":        ("\uf294", doom_colors[6][0]),
+        "connected": ("\uf294", doom_colors[4][0]),
+    }
+
+    def __init__(self, **config):
+        config.setdefault("mouse_callbacks", {
+            "Button1": self._toggle,
+            "Button3": lambda: qtile.spawn("blueman-manager"),
+        })
+        super().__init__(**config)
+
+    def probe(self):
+        if "Powered: yes" not in _run("bluetoothctl", "show"):
+            return "off"            # also: rfkill-blocked, or no adapter/bluetoothd
+        return "connected" if _run("bluetoothctl", "devices", "Connected").strip() else "on"
+
+    def _toggle(self):
+        if self.probe() == "off":   # soft-blocked radios refuse "power on" until unblocked
+            self.act(("rfkill", "unblock", "bluetooth"), ("sleep", "1"),
+                     ("bluetoothctl", "power", "on"))()
+        else:
+            self.act(("bluetoothctl", "power", "off"))()
+
 
 def init_widgets(include_systray=True, include_updates=True):
     widgets = [
@@ -326,7 +492,7 @@ def init_widgets(include_systray=True, include_updates=True):
             },
         ),
         widget.Net(
-            interface="eth0",   # pin: avoids enumerating docker0/virbr0/veth* each poll
+            interface=_default_route_iface(),   # pin: avoids enumerating docker0/virbr0/veth* each poll
             # ▾/▴ are 1-char arrows from the Nerd-Font set
             format="{down:.0f}{down_suffix}▾{up:.0f}{up_suffix}▴",
             update_interval=5,
@@ -349,7 +515,7 @@ def init_widgets(include_systray=True, include_updates=True):
         ),
         widget.Memory(
             foreground = doom_colors[8],
-            format="{MemUsed:4.1f}G",   # e.g. “  7.6 G”
+            format="\U000f035b {MemUsed:>3.1f}G",   # nf-md-memory (NF v3; the old U+F538 fell back to a Tibetan font)
             measure_mem="G",               # tell the widget we want GiB/GB
             update_interval=5,
         ),
@@ -367,8 +533,21 @@ def init_widgets(include_systray=True, include_updates=True):
             },
         ),
         ]
+    if WAYLAND:
+        # Mic + bluetooth next to the volume, Wayland (Fedora laptop) only; their
+        # services (blueman-applet) start in autostart_wayland.sh.
+        at = next(i for i, w in enumerate(widgets) if isinstance(w, widget.PulseVolume)) + 1
+        widgets[at:at] = [
+            MicIcon(update_interval=2),      # bar-default size/padding, as PulseVolume
+            BluetoothIcon(update_interval=5),   # bar-default size/padding, as PulseVolume
+        ]
     if include_systray:
-        widgets.append(widget.Systray(icon_size=12, padding=2))
+        # XEmbed Systray is X11-only; on Wayland tray icons are StatusNotifierItems
+        # (nm-applet --indicator, copyq, ...).
+        if WAYLAND:
+            widgets.append(widget.StatusNotifier(icon_size=12, padding=2))
+        else:
+            widgets.append(widget.Systray(icon_size=12, padding=2))
     widgets.extend([
         widget.Spacer(length=3),
     ])
@@ -395,14 +574,17 @@ def init_widgets(include_systray=True, include_updates=True):
     ] if include_updates else [])
     widgets.extend([
         widget.Spacer(length=1),
-        # Lock screen (i3lock-color, themed via theme.sh; same script xss-lock uses).
+        # Lock screen (i3lock-color on X11, swaylock on Wayland; themed via theme.sh,
+        # same script xss-lock / swayidle use).
         widget.TextBox(
             text="\U000f033e",        # Nerd Font lock (nf-md-lock)
             padding=6,
             fontsize=15,
             foreground = doom_colors[7],
             mouse_callbacks={
-                "Button1": lazy.spawn(os.path.expanduser("~/.config/qtile/lock_with_random_bg_x11.sh")),
+                "Button1": lazy.spawn(os.path.expanduser(
+                    "~/.config/qtile/lock_with_random_bg_wayland.sh" if WAYLAND
+                    else "~/.config/qtile/lock_with_random_bg_x11.sh")),
             },
         ),
         widget.TextBox(
@@ -411,21 +593,31 @@ def init_widgets(include_systray=True, include_updates=True):
             fontsize=16,
             foreground = doom_colors[1],   # explicit: the widget default (#ffffff) vanishes on Dawn
             mouse_callbacks={
-                 # See system_reboot.sh.
+                 # Reboot or shut down, see system_power.sh.
                  "Button1": lazy.spawn([
                      terminal,
                      "-e",
-                     os.path.expanduser("~/.config/qtile/system_reboot.sh"),
+                     os.path.expanduser("~/.config/qtile/system_power.sh"),
                  ])}),
         widget.Spacer(length=4),
     ])
     return widgets
 
 
-screens = [
-    Screen(top=bar.Bar(init_widgets(include_systray=(i == 0), include_updates=(i == 0)), 28, opacity=0.70))
-    for i in range(monitor_count)
-]
+def generate_screens(outputs):
+    """One bar per output; also re-derives the screen roles and group pinning."""
+    SCREEN.update(_screen_roles([o.rect for o in outputs]))
+    for name, role in GROUP_ROLE.items():
+        GROUP_SCREEN[name] = SCREEN[role]
+        if name in qtile.groups_map:
+            qtile.groups_map[name].screen_affinity = SCREEN[role]
+    # After qtile has configured these screens: start, reload and hotplug alike
+    # (the screens_reconfigured hook would miss start and reload).
+    qtile.call_soon(repin_groups)
+    return [
+        Screen(top=bar.Bar(init_widgets(include_systray=(i == 0), include_updates=(i == 0)), 28, opacity=0.70))
+        for i in range(len(outputs))
+    ]
 
 Drag([mod], "Button1", lazy.window.set_position_floating(),
      start=lazy.window.get_position()),
@@ -444,6 +636,21 @@ dgroups_app_rules = []  # type: list
 follow_mouse_focus = True
 bring_front_click = True
 floats_kept_above = True
+
+# Screenshot editor (bin/screenshot.sh gui on Wayland: slurp -> grim -> swappy).
+# slurp is a layer-shell overlay and always on top; swappy is a normal window,
+# so it gets floated, centred, raised above everything and focused (see
+# _keep_on_top) instead of landing behind the other apps.
+SCREENSHOT_EDITOR = Match(wm_class=re.compile(r"^(swappy|me\.jtheoof\.swappy)$"))
+
+# xdg-desktop-portal file pickers / save dialogs (flatpaks, browsers, ...).
+# qtile has no xdg-foreign, so they cannot attach to the app that opened them
+# and would otherwise be tiled as a normal window.
+PORTAL_DIALOG = Match(wm_class=re.compile(
+    r"^(xdg-desktop-portal-(gtk|kde)|org\.freedesktop\.impl\.portal\.desktop\.(gtk|kde))$"))
+
+# Floated, centred, raised above everything and focused (_keep_on_top).
+ON_TOP = [SCREENSHOT_EDITOR, PORTAL_DIALOG, CITRIX_DIALOG]
 cursor_warp = True
 floating_layout = layout.Floating(
     float_rules=[
@@ -466,6 +673,7 @@ floating_layout = layout.Floating(
         Match(title='Qalculate!'),        # qalculate-gtk
         Match(title="pinentry"),          # GPG key password entry
         Match(wm_class="rofi"),           # Rofi Launcher
+        *ON_TOP,                          # swappy, portal file dialogs
     ]
 )
 auto_fullscreen = True
@@ -474,56 +682,91 @@ reconfigure_screens = True
 
 auto_minimize = True
 
-wl_input_rules = None
+# Wayland input (ignored on X11). Keyboard layout comes from XKB_DEFAULT_* which
+# bin/starting-qtile-wayland.sh derives from localectl.
+try:
+    from libqtile.backend.wayland import InputConfig
+    wl_input_rules = {"type:touchpad": InputConfig(tap=True, dwt=True, natural_scroll=False)}
+except ImportError:
+    wl_input_rules = None
 
-# xcursor theme (string or None) and size (integer) for Wayland backend
-wl_xcursor_theme = "Dracula"
+# Wayland cursor (X11 reads XCURSOR_THEME / ~/.icons/default), follows theme.sh.
+wl_xcursor_theme = "BreezeX-RosePineDawn-Linux" if THEME_MODE == "light" else "BreezeX-RosePine-Linux"
 wl_xcursor_size = 24
 
-@hook.subscribe.client_new
-def assign_app_group(client):
+def repin_groups():
+    """Clean up after generate_screens replaced the Screen objects.
+
+    generate_screens returns fresh Screen objects on every change (kanshi
+    rotating the portrait panel, dock/undock, reload), but qtile's Screen.__eq__
+    calls two screens on the same output port EQUAL, whatever their geometry.
+    So qtile's own cleanup ("finalize screens not in new_screens") and
+    Group.set_screen ("already there") both skip the old objects:
+      - old bars stay alive and drawn (the pre-rotation 1920 px dark bar over
+        the portrait panel, clock frozen, widgets still polling);
+      - groups keep laying out for the old geometry (brave 1920 px wide on the
+        1200 px panel, spilling onto the next monitor).
+    So: finalize every bar that is not a live screen's bar (by identity), then
+    give every live screen exactly one group - its pinned group first - and lay
+    everything out again.
     """
-    Automatically move windows to designated groups based on their WM_CLASS.
-    Run `xprop | grep WM_CLASS` in a terminal and click on a window
-    to find its wm_class.
-    """
+    live = qtile.screens
 
-    d = {
-        "Brave-browser": ("1", "switch"),  
-        "VSCodium":      ("2", "switch"),  
-        "obsidian":      ("5", None),       
-        "Nautilus":      ("6", None), 
-        "KeePassXC":     ("7", "switch")     
-    }
+    live_bars = [g for s in live for g in s.gaps]
+    for b in [o for o in gc.get_objects() if isinstance(o, bar.Bar)]:
+        if b.window is not None and not any(b is lb for lb in live_bars):
+            b.finalize()
+    # ...and forget their widgets: widgets_map would otherwise keep resolving
+    # names ("pulsevolume", "micicon") to the dead copies.
+    live_widgets = {id(w) for b in live_bars for w in getattr(b, "widgets", [])}
+    for name in [n for n, w in qtile.widgets_map.items() if id(w) not in live_widgets]:
+        del qtile.widgets_map[name]
 
-    try:
+    plan, taken = [], set()
+    for i, scr in enumerate(live):
+        cur = scr.group.name if scr.group else None
+        pinned = [n for n in GROUP_ROLE if GROUP_SCREEN[n] == i and n not in taken]
+        # own pinned group (keep the shown one if it is), then an unpinned
+        # leftover, then any free unpinned group
+        if cur in pinned:
+            name = cur
+        elif pinned:
+            name = pinned[0]
+        elif cur is not None and cur not in taken and cur not in GROUP_SCREEN:
+            name = cur
+        else:
+            name = next((g.name for g in qtile.groups
+                         if g.name not in taken and g.name not in GROUP_SCREEN), None)
+        if name is None:
+            continue
+        taken.add(name)
+        plan.append((scr, qtile.groups_map[name]))
 
-        wm_class_tuple = client.window.get_wm_class()
-        if not wm_class_tuple:
-            return
-        matched_key = None
-        for item in wm_class_tuple:
-            if item in d:
-                matched_key = item
-                break
-        
-        if matched_key:
-            group_name, option = d[matched_key]
-            
-            client.togroup(group_name)
+    for g in qtile.groups:
+        if g.screen is not None:
+            g.hide()
+    for scr, g in plan:
+        scr.group = g
+        g.set_screen(scr, warp=False)
+    if qtile.current_screen not in live:
+        qtile.focus_screen(0)
+    hook.fire("setgroup")
 
-            if option == "switch":
-                qtile.groups_map[group_name].toscreen()
 
-    except (IndexError, TypeError):
-        return  # Not all windows have a wm_class
+@hook.subscribe.client_managed
+def follow_app_group(client):
+    """Show the group of a newly opened FOLLOW_GROUPS app, on its pinned screen.
+    Placement itself is GROUP_MATCHES; client_managed fires after it has run."""
+    group = getattr(client, "group", None)
+    if group is not None and group.name in FOLLOW_GROUPS:
+        _show_group(qtile, group.name)
 
 wmname = "LG3D"
 
 @hook.subscribe.startup_once
 def start_once():
     home = os.path.expanduser('~')
-    if qtile.core.name == "wayland":
+    if WAYLAND:
         autostart_script = os.path.join(home, '.config/qtile/autostart_wayland.sh')
     else:
         autostart_script = os.path.join(home, '.config/qtile/autostart_x11.sh')
@@ -566,6 +809,8 @@ _OPACITY_UNFOCUSED = 0.85
 def _apply_opacity(focused):
     for w in list(qtile.windows_map.values()):
         try:
+            if SCREENSHOT_EDITOR.compare(w):
+                continue   # stays opaque, see _keep_on_top
             w.opacity = _OPACITY_FOCUSED if w is focused else _OPACITY_UNFOCUSED
         except Exception:
             pass
@@ -580,6 +825,45 @@ def _opacity_on_managed(window):
         window.opacity = _OPACITY_UNFOCUSED
     except Exception:
         pass
+
+@hook.subscribe.client_managed
+def _citrix_never_minimize(window):
+    """wfica iconifies itself (e.g. fullscreen losing focus), and qtile's Wayland
+    backend grants every minimize request (auto_minimize is not consulted), so
+    the session vanished with no way back. Refuse minimizing for Citrix windows."""
+    if WAYLAND and (CITRIX_SESSION.compare(window) or CITRIX_DIALOG.compare(window)):
+        window.handle_request_minimize = lambda minimize: False
+        if window.minimized:
+            window.minimized = False
+
+
+def _fit_on_screen(window, margin=24):
+    """Centre a floating window in its screen's free area (below the bar),
+    shrunk to fit. qtile's center() keeps the window's own size, so a portal
+    file picker wider than the 1200 px portrait panel (GTK remembers the size
+    from bigger monitors) hung off both edges with parts unreachable."""
+    scr = window.group.screen if window.group else None
+    if scr is None:
+        return
+    w = min(window.width, scr.dwidth - 2 * margin)
+    h = min(window.height, scr.dheight - 2 * margin)
+    window.place(scr.dx + (scr.dwidth - w) // 2, scr.dy + (scr.dheight - h) // 2,
+                 w, h, window.borderwidth, window.bordercolor, above=True)
+
+
+@hook.subscribe.client_managed
+def _keep_on_top(window):
+    if not any(m.compare(window) for m in ON_TOP):
+        return
+    if SCREENSHOT_EDITOR.compare(window):
+        window.opacity = 1.0
+    _fit_on_screen(window)
+    # bring_to_front, not keep_above: on Wayland keep_above is a layer BELOW
+    # max-layout and fullscreen windows; bring-to-front sits above both, under
+    # the bar/notifications. qtile only re-layers a window on float-state
+    # changes, so it stays there while the window is open (dragging included).
+    window.bring_to_front()
+    window.focus()
 
 @hook.subscribe.startup_complete
 def _opacity_on_start():

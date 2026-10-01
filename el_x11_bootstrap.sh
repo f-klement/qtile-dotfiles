@@ -171,7 +171,8 @@ pip install qtile qtile-extras mypy typeshed-client typing_extensions pulsectl d
 pip install --upgrade python-dateutil dbus-fast pulsectl-asyncio pangocffi cairocffi
 EOF
 
-cat >/usr/share/xsessions/qtile.desktop <<'EOF'
+# Unquoted heredoc on purpose: $TARGET_USER must expand into the Exec path.
+cat >/usr/share/xsessions/qtile.desktop <<EOF
 [Desktop Entry]
 Name=Qtile
 Comment=Qtile Tiling Window Manager (Python 3.12, X11)
@@ -330,7 +331,7 @@ pkg_or_build rofi rofi install_rofi
 
 # 5.5 fonts & cursors
 FONT_NAME="JetBrainsMono Nerd Font"
-FONT_DIR="$TARGET_USER/.local/share/fonts"
+FONT_DIR="/home/$TARGET_USER/.local/share/fonts"
 FONT_ZIP="JetBrainsMono.zip"
 FONT_URL="https://github.com/ryanoasis/nerd-fonts/releases/latest/download/$FONT_ZIP"
 
@@ -339,15 +340,15 @@ if fc-list | grep -qi "$FONT_NAME"; then
     echo "'$FONT_NAME' is already installed. Skipping download."
 else
     echo " Installing '$FONT_NAME'..."
-    mkdir -p "$FONT_DIR"
-    cd "$FONT_DIR" || exit 1
-
-    wget "$FONT_URL" -O "$FONT_ZIP"
-    unzip -o "$FONT_ZIP"
-    rm "$FONT_ZIP"
+    # As the user: this runs as root, and root-owned files in ~/.local/share
+    # would break later per-user font installs.
+    sudo -u "$TARGET_USER" mkdir -p "$FONT_DIR"
+    sudo -u "$TARGET_USER" wget "$FONT_URL" -O "$FONT_DIR/$FONT_ZIP"
+    sudo -u "$TARGET_USER" unzip -o "$FONT_DIR/$FONT_ZIP" -d "$FONT_DIR"
+    rm "$FONT_DIR/$FONT_ZIP"
 
     echo " Rebuilding font cache..."
-    fc-cache -fv
+    sudo -u "$TARGET_USER" fc-cache -fv
 
     echo "'$FONT_NAME' installed successfully."
 fi
