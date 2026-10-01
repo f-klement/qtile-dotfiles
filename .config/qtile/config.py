@@ -632,7 +632,9 @@ def generate_screens(outputs):
 # works on either backend). Probe the config API rather than a version string:
 # libqtile exports no __version__.
 if "generate_screens" not in getattr(confreader.Config, "__annotations__", {}):
-    screens = _build_screens(list(qtile.core.get_screen_info()))
+    # getattr, as with qtile.core.name above: the module-level `qtile` proxy is
+    # still the undefined-core stub to a type checker.
+    screens = _build_screens(list(getattr(qtile.core, "get_screen_info", list)()))
 
 Drag([mod], "Button1", lazy.window.set_position_floating(),
      start=lazy.window.get_position()),
