@@ -57,8 +57,9 @@ fi
   done
 ) &
 
-# Blank after 5 min; lock on idle/suspend.
-xset s 300 -dpms
+# Blank after 1 h; lock on idle/suspend. This is a long-lived private server
+# session, not a shared desktop, so idle locking is deliberately relaxed.
+xset s 3600 -dpms
 # NOTE: run xss-lock on the session's existing bus, not via dbus-run-session,
 # or idle/inhibit signalling lands on a different bus than the rest of the session.
 xss-lock -- ~/.config/qtile/lock_with_random_bg_x11.sh &

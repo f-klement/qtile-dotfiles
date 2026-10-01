@@ -73,13 +73,14 @@ export QTILE_CHECK_SKIP_STUBS=1
   done
 ) &
 
-# Lock after 5 min idle, before suspend, and on `loginctl lock-session`;
+# Lock after 1 h idle, before suspend, and on `loginctl lock-session`;
 # screens off one minute after locking. -w: suspend waits until the lock is up.
+# A long idle window on purpose: private server session, not a shared desktop.
 # wlopm = DPMS (output-power protocol). NOT wlr-randr --off: that removes the
 # output, and qtile would reshuffle its groups as if the monitor was unplugged.
 swayidle -w \
-  timeout 300 ~/.config/qtile/lock_with_random_bg_wayland.sh \
-  timeout 360 'wlopm --off "*"' resume 'wlopm --on "*"' \
+  timeout 3600 ~/.config/qtile/lock_with_random_bg_wayland.sh \
+  timeout 3660 'wlopm --off "*"' resume 'wlopm --on "*"' \
   before-sleep ~/.config/qtile/lock_with_random_bg_wayland.sh \
   lock ~/.config/qtile/lock_with_random_bg_wayland.sh &
 
