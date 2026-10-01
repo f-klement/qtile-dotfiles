@@ -625,12 +625,13 @@ def generate_screens(outputs):
     return _build_screens([o.rect for o in outputs])
 
 
-# generate_screens() is a qtile 0.35 API; EL8's venv is on 0.31, which ignores
-# it and then finds no `screens` at all, so every output comes up as a bare
-# Screen() with no bar. On those versions build the list eagerly instead, from
-# the outputs the core already knows about (xrandr is not needed for this, so it
-# works on either backend). Probe the config API rather than a version string:
-# libqtile exports no __version__.
+# generate_screens() is a qtile 0.35 API. Older qtile ignores it, then finds no
+# `screens` at all, so every output comes up as a bare Screen() with no bar --
+# and nothing is logged, because Config.update() just falls back to a default
+# rather than raising. Both bootstraps install >= 0.35, so this is only a safety
+# net for a venv predating that floor: build the list eagerly from the outputs
+# the core already knows about (no xrandr, so either backend works). Probe the
+# config API, not a version string: libqtile exports no __version__.
 if "generate_screens" not in getattr(confreader.Config, "__annotations__", {}):
     # getattr, as with qtile.core.name above: the module-level `qtile` proxy is
     # still the undefined-core stub to a type checker.

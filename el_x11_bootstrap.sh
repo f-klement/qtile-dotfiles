@@ -166,7 +166,11 @@ set -e
 python3.12 -m venv "$QTILE_VENV"
 source "$QTILE_VENV/bin/activate"
 pip install --upgrade pip
-pip install qtile qtile-extras mypy typeshed-client typing_extensions pulsectl dbus-next psutil
+# qtile >= 0.35 for the generate_screens() config API that config.py builds its
+# bars from; on anything older qtile ignores it, finds no screens at all and
+# comes up with no bar (config.py keeps a fallback, but don't rely on it).
+# qtile-extras releases in lockstep with qtile, so pip resolves the pair.
+pip install 'qtile>=0.35' 'qtile-extras>=0.35' mypy typeshed-client typing_extensions pulsectl dbus-next psutil
 # upgrade these separately
 pip install --upgrade python-dateutil dbus-fast pulsectl-asyncio pangocffi cairocffi
 EOF

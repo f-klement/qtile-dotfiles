@@ -19,7 +19,8 @@ there is no docker daemon on EL (an existing one on Fedora is left alone).
 ## One config, two backends
 
 - **Shared, branching on the backend**: `.config/qtile/config.py`
-  (`qtile.core.name`; screens come from `generate_screens`, so no xrandr),
+  (`qtile.core.name`; screens come from `generate_screens`, so no xrandr --
+  needs qtile >= 0.35),
   `bin/theme.sh`, `bin/wallpaper.sh` (feh / swaybg), `bin/screenshot.sh`
   (flameshot / grim+slurp+swappy).
 - **Per backend**, because the tooling does not overlap:
