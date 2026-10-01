@@ -604,8 +604,34 @@ def init_widgets(include_systray=True, include_updates=True):
     return widgets
 
 
+def _retire_systray():
+    """Release the X tray selection before the Systray below is rebuilt.
+
+    Systray guards _NET_SYSTEM_TRAY_S0 with a CLASS-level instance counter, so
+    constructing a second one while the first is still alive raises
+    ConfigError("Only one Systray can be used.") and qtile swaps in a
+    "Widget crashed: Systray" placeholder ~277 px wide -- which eats the slack
+    the two bar.STRETCH spacers would have had and drags the whole right-hand
+    cluster in towards the clock.
+
+    This function runs on every screen change, including the reconfigure that
+    randr triggers seconds after login, so the old instance has to go first.
+    repin_groups() does finalize stale bars, but only once the new widgets have
+    been configured - too late for the selection.
+    """
+    if WAYLAND:  # Wayland tray icons are StatusNotifierItems; no X selection
+        return
+    for w in [o for o in gc.get_objects() if isinstance(o, widget.Systray)]:
+        if getattr(w, "configured", False):
+            try:
+                w.finalize()
+            except Exception:  # never let this stop the bar from being built
+                logger.exception("could not retire the previous Systray")
+
+
 def _build_screens(rects):
     """One bar per output; also re-derives the screen roles and group pinning."""
+    _retire_systray()
     SCREEN.update(_screen_roles(rects))
     for name, role in GROUP_ROLE.items():
         GROUP_SCREEN[name] = SCREEN[role]
