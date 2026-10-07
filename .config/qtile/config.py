@@ -6,7 +6,7 @@ import shutil
 import colors as color_mod
 import subprocess
 from zoneinfo import ZoneInfo 
-from libqtile import bar, layout, qtile, widget, hook
+from libqtile import bar, confreader, layout, qtile, widget, hook
 from libqtile.config import Click, Drag, Group, Key, Match, Screen
 from libqtile.lazy import lazy
 from libqtile.utils import guess_terminal, logger
@@ -592,8 +592,9 @@ def init_widgets(include_systray=True, include_updates=True):
             distro="Fedora",  # This uses the DNF backend, which works for Rocky/RHEL
             display_format="󱧕 {updates}", #  is a Nerd Font package icon
             no_update_string="󱧕 0",
-            colour_have_updates=doom_colors[5], # Green
-            colour_no_updates=doom_colors[9],   # Grey
+            colour_have_updates=doom_colors[5], # gold
+            # muted grey reads fine on the dark base but washes out on Dawn's cream
+            colour_no_updates=doom_colors[9] if THEME_MODE == "dark" else doom_colors[1],
             update_interval=1800, # Check every 30 mins
             mouse_callbacks={
                 # Left-click runs system_update.sh in a terminal.
@@ -608,11 +609,24 @@ def init_widgets(include_systray=True, include_updates=True):
     ] if include_updates else [])
     widgets.extend([
         widget.Spacer(length=1),
+        # Lock screen (i3lock-color on X11, swaylock on Wayland; themed via theme.sh,
+        # same script xss-lock / swayidle use).
+        widget.TextBox(
+            text="\U000f033e",        # Nerd Font lock (nf-md-lock)
+            padding=6,
+            fontsize=15,
+            foreground = doom_colors[7],
+            mouse_callbacks={
+                "Button1": lazy.spawn(os.path.expanduser(
+                    "~/.config/qtile/lock_with_random_bg_wayland.sh" if WAYLAND
+                    else "~/.config/qtile/lock_with_random_bg_x11.sh")),
+            },
+        ),
         widget.TextBox(
             text="⏻",
             padding=6,
             fontsize=16,
-            foreground="#000000" if THEME_MODE == "light" else "#ffffff",   # black on Dawn
+            foreground = doom_colors[1],   # explicit: the widget default (#ffffff) vanishes on Dawn
             mouse_callbacks={
                  # Reboot or shut down, see system_power.sh.
                  "Button1": lazy.spawn([
@@ -625,9 +639,35 @@ def init_widgets(include_systray=True, include_updates=True):
     return widgets
 
 
-def generate_screens(outputs):
+def _retire_systray():
+    """Release the X tray selection before the Systray below is rebuilt.
+
+    Systray guards _NET_SYSTEM_TRAY_S0 with a CLASS-level instance counter, so
+    constructing a second one while the first is still alive raises
+    ConfigError("Only one Systray can be used.") and qtile swaps in a
+    "Widget crashed: Systray" placeholder ~277 px wide -- which eats the slack
+    the two bar.STRETCH spacers would have had and drags the whole right-hand
+    cluster in towards the clock.
+
+    This function runs on every screen change, including the reconfigure that
+    randr triggers seconds after login, so the old instance has to go first.
+    repin_groups() does finalize stale bars, but only once the new widgets have
+    been configured - too late for the selection.
+    """
+    if WAYLAND:  # Wayland tray icons are StatusNotifierItems; no X selection
+        return
+    for w in [o for o in gc.get_objects() if isinstance(o, widget.Systray)]:
+        if getattr(w, "configured", False):
+            try:
+                w.finalize()
+            except Exception:  # never let this stop the bar from being built
+                logger.exception("could not retire the previous Systray")
+
+
+def _build_screens(rects):
     """One bar per output; also re-derives the screen roles and group pinning."""
-    SCREEN.update(_screen_roles([o.rect for o in outputs]))
+    _retire_systray()
+    SCREEN.update(_screen_roles(rects))
     for name, role in GROUP_ROLE.items():
         GROUP_SCREEN[name] = SCREEN[role]
         if name in qtile.groups_map:
@@ -637,8 +677,26 @@ def generate_screens(outputs):
     qtile.call_soon(repin_groups)
     return [
         Screen(top=bar.Bar(init_widgets(include_systray=(i == 0), include_updates=(i == 0)), 28, opacity=0.70))
-        for i in range(len(outputs))
+        for i in range(max(1, len(rects)))
     ]
+
+
+def generate_screens(outputs):
+    """qtile >= 0.35 calls this on start and on every output change."""
+    return _build_screens([o.rect for o in outputs])
+
+
+# generate_screens() is a qtile 0.35 API. Older qtile ignores it, then finds no
+# `screens` at all, so every output comes up as a bare Screen() with no bar --
+# and nothing is logged, because Config.update() just falls back to a default
+# rather than raising. Both bootstraps install >= 0.35, so this is only a safety
+# net for a venv predating that floor: build the list eagerly from the outputs
+# the core already knows about (no xrandr, so either backend works). Probe the
+# config API, not a version string: libqtile exports no __version__.
+if "generate_screens" not in getattr(confreader.Config, "__annotations__", {}):
+    # getattr, as with qtile.core.name above: the module-level `qtile` proxy is
+    # still the undefined-core stub to a type checker.
+    screens = _build_screens(list(getattr(qtile.core, "get_screen_info", list)()))
 
 Drag([mod], "Button1", lazy.window.set_position_floating(),
      start=lazy.window.get_position()),
@@ -743,6 +801,18 @@ def repin_groups():
     everything out again.
     """
     live = qtile.screens
+
+    # Same __eq__ quirk, one level up: on a reload qtile points current_screen
+    # at the Screen object _build_screens just returned, while keeping the old,
+    # equal-looking object in qtile.screens. The two then diverge --
+    # current_screen carries the bar that was never configured, so `in` says it
+    # is live while `is` says it is not, and every lazy command that goes
+    # through current_screen (group switching included) acts on that phantom
+    # instead of the screen in front of you. Re-point it, by identity, at the
+    # object qtile actually kept.
+    if not any(qtile.current_screen is s for s in live):
+        _i = getattr(qtile.current_screen, "index", 0) or 0
+        qtile.current_screen = live[_i] if _i < len(live) else live[0]
 
     live_bars = [g for s in live for g in s.gaps]
     for b in [o for o in gc.get_objects() if isinstance(o, bar.Bar)]:

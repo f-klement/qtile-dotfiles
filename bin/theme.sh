@@ -14,7 +14,8 @@
 #   Qt on KDE runtime   ~/.config/kdeglobals (next start; merged, not replaced)
 #   kitty               current-theme.conf -> SIGUSR1 (live)
 #   rofi / dunst        colors.rasi / dunstrc.d (live, dunstctl reload)
-#   swaylock            swaylock/config (next lock)
+#   i3lock-color        i3lock/current.conf, sourced by the lock script (X11, next lock)
+#   swaylock            swaylock/config (Wayland, next lock)
 #   cursor              gsettings + ~/.icons/default + root window
 #   Claude Code         ~/.claude/settings.json theme -> custom:<theme> (~/.claude/themes)
 #   VSCodium, Obsidian  their own settings files (apps re-read them themselves)
@@ -70,6 +71,7 @@ mkdir -p "$C/dunst/dunstrc.d"
 put    "$C/dunst/colors-$THEME.conf"   "$C/dunst/dunstrc.d/50-colors.conf"
 put    "$C/swaylock/$THEME.conf"       "$C/swaylock/config"
 put    "$C/gtk-4.0/gtk-$THEME.css"     "$C/gtk-4.0/gtk.css"
+put    "$C/i3lock/$THEME.conf"         "$C/i3lock/current.conf"
 render "$C/gtk-3.0/settings.ini.in"    "$C/gtk-3.0/settings.ini"
 render "$C/gtk-4.0/settings.ini.in"    "$C/gtk-4.0/settings.ini"
 render "$C/qt5ct/qt5ct.conf.in"        "$C/qt5ct/qt5ct.conf"
