@@ -186,6 +186,16 @@ GROUP_ROLE = {
     "6": "small",       # obsidian
     "9": "landscape",   # citrix (the monitor Citrix itself picks for this layout)
 }
+if WAYLAND:
+    # virt-manager/debian-work: one dedicated group per screen, Wayland (this
+    # Fedora laptop) only -- these three outputs and virt-manager itself are
+    # specific to this host, not the X11 EL VM. Overwrites groups 7/9's
+    # KeePassXC/Citrix pins below: neither runs on this host.
+    GROUP_ROLE.update({
+        "7": "small",       # built-in
+        "8": "landscape",   # landscape external
+        "9": "portrait",    # portrait external
+    })
 GROUP_SCREEN = {name: SCREEN[role] for name, role in GROUP_ROLE.items()}
 
 # Citrix Workspace session (wfica, X11 via Xwayland). Spanning several monitors
@@ -195,6 +205,25 @@ GROUP_SCREEN = {name: SCREEN[role] for name, role in GROUP_ROLE.items()}
 # Its splash/login/error/reconnect dialogs are Wfica_* and float on top (ON_TOP).
 CITRIX_SESSION = Match(wm_class=re.compile(r"^[Ww]fica$"))
 CITRIX_DIALOG = Match(wm_class=re.compile(r"^Wfica_"))
+
+# debian-work VM session, Wayland/this host only -- see GROUP_ROLE. work()
+# (bashrc/zshrc) launches virt-viewer, not virt-manager -- those are
+# different programs with different wm_class values; this used to say
+# "virt-manager" and never matched anything as a result.
+#
+# The VM's heads='2' opens one virt-viewer window per guest display, titled
+# "debian-work (1)" / "debian-work (2)" (or just "debian-work" with no
+# suffix if it's ever down to a single head). wm_class alone can't tell
+# those windows apart -- it's identical for both -- so match on the title
+# suffix too, one head per screen instead of both piling onto group 7.
+# qtile's Match uses re.Pattern.match() (anchored at the START of the
+# string only, like every other pattern in this file), not re.search() --
+# these must spell out the "debian-work" prefix, a bare "\(1\)$" etc. would
+# never match "debian-work (1)" since the match attempt starts at position 0.
+_VV_CLASS = re.compile(r"(?i)^virt-viewer$")
+VIRT_VIEWER_HEAD1 = Match(wm_class=_VV_CLASS, title=re.compile(r"^debian-work(\s\(1\))?$"))
+VIRT_VIEWER_HEAD2 = Match(wm_class=_VV_CLASS, title=re.compile(r"^debian-work\s\(2\)$"))
+VIRT_VIEWER_HEAD3 = Match(wm_class=_VV_CLASS, title=re.compile(r"^debian-work\s\(3\)$"))  # unused at heads=2, future-proofing
 
 # Spawn rules. X11: wm_class of the RUNNING window (codium reports "codium").
 # Wayland: the app_id (brave-browser, codium, org.gnome.Nautilus, obsidian, ...).
@@ -206,6 +235,12 @@ GROUP_MATCHES = {
     "7": [Match(wm_class=re.compile(r"^(KeePassXC|keepassxc|org\.keepassxc\.KeePassXC)$"))],
     "9": [CITRIX_SESSION],
 }
+if WAYLAND:
+    # Overwrite groups 7/9's KeePassXC/Citrix matches: neither runs on this
+    # host (see GROUP_ROLE).
+    GROUP_MATCHES["7"] = [VIRT_VIEWER_HEAD1]
+    GROUP_MATCHES["8"] = [VIRT_VIEWER_HEAD2]
+    GROUP_MATCHES["9"] = [VIRT_VIEWER_HEAD3]
 
 # Groups whose apps also pull the view to them when they open (see follow_app_group).
 FOLLOW_GROUPS = {"1", "2", "7", "9"}
@@ -635,6 +670,17 @@ SCREENSHOT_EDITOR = Match(wm_class=re.compile(r"^(swappy|me\.jtheoof\.swappy)$")
 PORTAL_DIALOG = Match(wm_class=re.compile(
     r"^(xdg-desktop-portal-(gtk|kde)|org\.freedesktop\.impl\.portal\.desktop\.(gtk|kde))$"))
 
+# Generic alert/notification-style dialogs -- a narrower subset of the
+# float_rules below (excludes Qalculate!, rofi, gitk's own dialogs, and
+# download/file-progress/toolbar boxes, which aren't "alerts" and stay
+# centred). Docked to the TOP of their screen instead of centred (see
+# _dock_to_top), so they grab attention without sitting over whatever you
+# were looking at.
+ALERT_DIALOG = Match(wm_class=re.compile(
+    r"^(notification|dialog|error|Yad|pinentry(-gtk-2)?|ssh-askpass)$", re.I))
+ALERT_DIALOG_TITLE = Match(title=re.compile(r"^(Confirmation|pinentry)$"))
+ALERT_WINDOWS = [ALERT_DIALOG, ALERT_DIALOG_TITLE]
+
 # Floated, centred, raised above everything and focused (_keep_on_top).
 ON_TOP = [SCREENSHOT_EDITOR, PORTAL_DIALOG, CITRIX_DIALOG]
 cursor_warp = True
@@ -837,13 +883,30 @@ def _fit_on_screen(window, margin=24):
                  w, h, window.borderwidth, window.bordercolor, above=True)
 
 
+def _dock_to_top(window, margin=24):
+    """Dock a floating alert/notification window to the top-centre of its
+    screen, shrunk to fit -- same sizing logic as _fit_on_screen, anchored to
+    the top instead of vertically centred."""
+    scr = window.group.screen if window.group else None
+    if scr is None:
+        return
+    w = min(window.width, scr.dwidth - 2 * margin)
+    h = min(window.height, scr.dheight - 2 * margin)
+    window.place(scr.dx + (scr.dwidth - w) // 2, scr.dy + margin,
+                 w, h, window.borderwidth, window.bordercolor, above=True)
+
+
 @hook.subscribe.client_managed
 def _keep_on_top(window):
-    if not any(m.compare(window) for m in ON_TOP):
+    is_alert = any(m.compare(window) for m in ALERT_WINDOWS)
+    if not (is_alert or any(m.compare(window) for m in ON_TOP)):
         return
     if SCREENSHOT_EDITOR.compare(window):
         window.opacity = 1.0
-    _fit_on_screen(window)
+    if is_alert:
+        _dock_to_top(window)
+    else:
+        _fit_on_screen(window)
     # bring_to_front, not keep_above: on Wayland keep_above is a layer BELOW
     # max-layout and fullscreen windows; bring-to-front sits above both, under
     # the bar/notifications. qtile only re-layers a window on float-state
