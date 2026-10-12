@@ -1,0 +1,14 @@
+[Unit]
+Description=hyprpanes: resident host for the waybar dropdown panes
+Documentation=file://%h/.config/hypr/UserScripts/hyprpanes.py
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=%h/.config/hypr/UserScripts/hyprpanes.py daemon
+Restart=on-failure
+RestartSec=3
+
+[Install]
+WantedBy=graphical-session.target

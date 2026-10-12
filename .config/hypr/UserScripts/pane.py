@@ -50,7 +50,7 @@ import signal
 import subprocess
 import sys
 
-LAYER_SHELL_LIB = "/usr/lib/libgtk4-layer-shell.so"
+LAYER_SHELL_LIB = "/usr/lib64/libgtk4-layer-shell.so.0"  # Fedora path (no unversioned .so symlink exists); was "/usr/lib/libgtk4-layer-shell.so" (Arch)
 LEAVE_MS = 1000   # pointer outside the pane this long -> close
 PID_DIR = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "hypr-panes")
 THEME_STATE = os.path.expanduser("~/.local/state/theme-mode")

@@ -36,7 +36,7 @@ import sys
 HERE = os.path.dirname(os.path.abspath(__file__))
 RUN_DIR = os.path.join(os.environ.get("XDG_RUNTIME_DIR") or "/tmp", "hypr-panes")
 SOCK = os.path.join(RUN_DIR, "hyprpanes.sock")
-LAYER_SHELL_LIB = "/usr/lib/libgtk4-layer-shell.so"
+LAYER_SHELL_LIB = "/usr/lib64/libgtk4-layer-shell.so.0"  # Fedora path (no unversioned .so symlink exists); was "/usr/lib/libgtk4-layer-shell.so" (Arch)
 
 # name -> (module in this directory, standalone argv for the fallback)
 PANES = {
