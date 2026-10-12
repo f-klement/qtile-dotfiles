@@ -1,23 +1,57 @@
-// Waybar config -- mirrors qtile's own bar (config.py's init_widgets):
-// workspaces left, clock centered, theme/wallpaper/network/volume/mic/
-// bluetooth/memory/cpu/screenshot/tray/updates/power on the right. Reuses
-// the same scripts qtile's bar uses (~/bin/theme.sh, wallpaper.sh,
-// screenshot.sh, ~/.config/qtile/system_update.sh, system_power.sh) rather
-// than new ones, so both sessions behave the same way.
+// Waybar config -- adapted from hyprland-arch-dotfiles's "Proposal 1 —
+// Solid" layout and its modules file, wired to this host's actual setup:
+// the hyprpanes dropdown panes (weather/keybinds/bluetooth/quick-settings/
+// calendar -- no power pane, PowerPane was TUXEDO-only and skipped
+// entirely), qtile's shared scripts (theme.sh/wallpaper.sh/screenshot.sh)
+// instead of the reference repo's DarkLight.sh/LockScreen.sh/etc (none of
+// which exist here), and direct commands (loginctl, rfkill, pactl) where
+// the reference repo called its own now-missing scripts.
 {
     "layer": "top",
     "position": "top",
     "height": 28,
-    "spacing": 2,
+    "exclusive": true,
+    "passthrough": false,
+    "spacing": 0,
+    "fixed-center": true,
+    "ipc": true,
+    "reload_style_on_change": true,
     "margin-top": 0,
+    "margin-left": 0,
+    "margin-right": 0,
 
-    "modules-left": ["hyprland/workspaces"],
-    "modules-center": ["clock"],
+    "modules-left": [
+        "hyprland/workspaces",
+        "custom/separator",
+        "custom/weather"
+    ],
+
+    "modules-center": [
+        "custom/menu",
+        "custom/separator",
+        "idle_inhibitor",
+        "custom/separator",
+        "clock",
+        "custom/separator",
+        "custom/light_dark",
+        "custom/separator",
+        "custom/lock"
+    ],
+
     "modules-right": [
-        "custom/theme", "custom/wallpaper",
-        "network", "pulseaudio", "custom/mic", "bluetooth",
-        "memory", "cpu",
-        "custom/screenshot", "tray", "custom/updates", "custom/power"
+        "custom/swaync",
+        "tray",
+        "mpris",
+        "bluetooth",
+        "custom/separator",
+        "battery",
+        "custom/separator",
+        "pulseaudio",
+        "network",
+        "custom/separator",
+        "custom/screenshot",
+        "custom/updates",
+        "custom/power"
     ],
 
     "hyprland/workspaces": {
@@ -26,23 +60,138 @@
         "persistent-workspaces": { "*": 1 }
     },
 
+    "custom/separator": {
+        "format": "│",
+        "tooltip": false
+    },
+
     "clock": {
         "format": "{:%H:%M   %d-%m-%Y}",
         "timezone": "Europe/Vienna"
     },
 
-    "custom/theme": {
-        "format": "{}",
-        "exec": "sh -c 'if [ \"$(cat ~/.local/state/theme-mode 2>/dev/null)\" = light ]; then echo \"\"; else echo \"\"; fi'",
-        "interval": 5,
-        "on-click": "~/bin/theme.sh toggle",
-        "tooltip": false
+    "idle_inhibitor": {
+        "format": "{icon}",
+        "format-icons": { "activated": "󰈈", "deactivated": "󰈉" }
     },
 
-    "custom/wallpaper": {
-        "format": "",
-        "on-click": "~/bin/wallpaper.sh",
-        "tooltip-format": "Random wallpaper"
+    // DarkLight.sh doesn't exist -- qtile's own ~/bin/theme.sh toggle is
+    // the shared mechanism (re-themes both sessions the same way). Right-
+    // click toggles hyprsunset inline (NightlightToggle.sh doesn't exist
+    // either, same inline toggle QuickSettings.py's night-light tile uses).
+    "custom/light_dark": {
+        "format": "{}",
+        "exec": "sh -c 'if [ \"$(cat ~/.local/state/theme-mode 2>/dev/null)\" = light ]; then echo \"󰖨\"; else echo \"󰖔\"; fi'",
+        "interval": 5,
+        "on-click": "~/bin/theme.sh toggle",
+        "on-click-right": "bash -c 'pidof hyprsunset >/dev/null && pkill hyprsunset || hyprsunset -t 4000 &'",
+        "on-click-middle": "~/bin/wallpaper.sh",
+        "tooltip-format": "Left: toggle theme  Right: toggle night light  Middle: random wallpaper"
+    },
+
+    "custom/lock": {
+        "format": "󰌾",
+        "on-click": "loginctl lock-session",
+        "tooltip-format": "Lock screen"
+    },
+
+    // qtile's own rofi drun launcher command, not the reference repo's
+    // extra filebrowser/window modi (rofi config here doesn't define
+    // those extra modes).
+    "custom/menu": {
+        "format": "󰍜",
+        "on-click": "pkill rofi || rofi -show drun",
+        "tooltip-format": "App launcher (rofi)"
+    },
+
+    // Weather.py exists as ported (UserScripts/Weather.py) but its
+    // systemd-timer-driven cache file (weather.bar.json, refreshed every
+    // 15min by a weather.timer unit) was NOT ported -- that's a separate
+    // piece of infrastructure the reference repo relies on that adds real
+    // scope beyond "the bar + the panes". Runs the script directly each
+    // poll instead; Weather.py's own 15-min internal cache (see its own
+    // CACHE path) still avoids hammering the API on every single poll.
+    "custom/weather": {
+        "format": "{}",
+        "return-type": "json",
+        "exec": "~/.config/hypr/UserScripts/Weather.py",
+        "interval": 900,
+        "on-click": "~/.config/hypr/UserScripts/hyprpanes.py toggle weather",
+        "on-click-right": "~/.config/hypr/UserScripts/hyprpanes.py toggle weather",
+        "tooltip": true
+    },
+
+    "custom/swaync": {
+        "tooltip": true,
+        "format": "{icon} {text}",
+        "format-icons": {
+            "notification": "<span foreground='red'><sup></sup></span>",
+            "none": "",
+            "dnd-notification": "<span foreground='red'><sup></sup></span>",
+            "dnd-none": "",
+            "inhibited-notification": "<span foreground='red'><sup></sup></span>",
+            "inhibited-none": ""
+        },
+        "return-type": "json",
+        "exec-if": "which swaync-client",
+        "exec": "swaync-client -swb | sed -u 's/\"text\": \"0\"/\"text\": \"\"/'",
+        "on-click": "sleep 0.1 && swaync-client -t -sw",
+        "on-click-right": "swaync-client -d -sw",
+        "escape": true
+    },
+
+    "tray": {
+        "icon-size": 15,
+        "spacing": 8
+    },
+
+    "mpris": {
+        "interval": 10,
+        "format": "{player_icon} ",
+        "format-paused": "{status_icon} <i>{dynamic}</i>",
+        "on-click-middle": "playerctl play-pause",
+        "on-click": "playerctl previous",
+        "on-click-right": "playerctl next",
+        "scroll-step": 5.0,
+        "on-scroll-up": "pactl set-sink-volume @DEFAULT_SINK@ +5%",
+        "on-scroll-down": "pactl set-sink-volume @DEFAULT_SINK@ -5%",
+        "player-icons": { "default": "" },
+        "status-icons": { "paused": "󰏤", "playing": "󰐊", "stopped": "󰓛" },
+        "max-length": 30
+    },
+
+    "bluetooth": {
+        "format": "󰂯",
+        "format-connected": "󰂯",
+        "format-disabled": "󰂲",
+        "on-click": "rfkill toggle bluetooth",
+        "on-click-right": "~/.config/hypr/UserScripts/hyprpanes.py toggle bluetooth"
+    },
+
+    // No power pane (PowerPane was TUXEDO/tccd-specific, skipped) -- just
+    // the charge readout, no pane click-through.
+    "battery": {
+        "full-at": 100,
+        "states": { "good": 95, "warning": 30, "critical": 15 },
+        "format": "{icon} {capacity}%",
+        "format-charging": " {capacity}%",
+        "format-plugged": "󱘖 {capacity}%",
+        "format-full": "{icon} Full",
+        "format-alt": "{icon} {time}",
+        "format-icons": ["󰂎", "󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"],
+        "format-time": "{H}h {M}min",
+        "tooltip": true,
+        "tooltip-format": "{timeTo} {power}w"
+    },
+
+    "pulseaudio": {
+        "format": " {volume}%",
+        "format-muted": "󰝟 M",
+        "on-click": "pactl set-sink-mute @DEFAULT_SINK@ toggle",
+        "on-click-middle": "~/.config/hypr/UserScripts/hyprpanes.py toggle quick",
+        "on-click-right": "pavucontrol",
+        "on-scroll-up": "pactl set-sink-volume @DEFAULT_SINK@ +5%",
+        "on-scroll-down": "pactl set-sink-volume @DEFAULT_SINK@ -5%"
     },
 
     "network": {
@@ -53,52 +202,12 @@
         "on-click-right": "nm-connection-editor"
     },
 
-    "pulseaudio": {
-        "format": " {volume}%",
-        "format-muted": " M",
-        "on-click": "pactl set-sink-mute @DEFAULT_SINK@ toggle",
-        "on-click-middle": "pavucontrol",
-        "on-scroll-up": "pactl set-sink-volume @DEFAULT_SINK@ +5%",
-        "on-scroll-down": "pactl set-sink-volume @DEFAULT_SINK@ -5%"
-    },
-
-    "custom/mic": {
-        "format": "{}",
-        "exec": "sh -c 'wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null | grep -q MUTED && echo \"\" || echo \"\"'",
-        "interval": 5,
-        "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
-        "tooltip": false
-    },
-
-    "bluetooth": {
-        "format": "",
-        "format-connected": "",
-        "format-disabled": "",
-        "on-click": "rfkill toggle bluetooth",
-        "on-click-right": "blueman-manager"
-    },
-
-    "memory": {
-        "format": " {used:0.1f}G",
-        "interval": 5
-    },
-
-    "cpu": {
-        "format": " {usage}%",
-        "interval": 5
-    },
-
     "custom/screenshot": {
-        "format": "",
+        "format": "",
         "on-click": "~/bin/screenshot.sh gui",
         "on-click-middle": "~/bin/screenshot.sh full",
         "on-click-right": "~/bin/screenshot.sh clip",
         "tooltip-format": "Left: select region  Middle: full screen  Right: full screen to clipboard"
-    },
-
-    "tray": {
-        "icon-size": 16,
-        "spacing": 6
     },
 
     "custom/updates": {
@@ -110,6 +219,8 @@
 
     "custom/power": {
         "format": "⏻",
-        "on-click": "kitty -e ~/.config/qtile/system_power.sh"
+        "on-click": "wlogout",
+        "on-click-right": "~/.config/hypr/UserScripts/hyprpanes.py toggle keybinds",
+        "tooltip-format": "Left: logout menu  Right: keybindings cheat sheet"
     }
 }

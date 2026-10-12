@@ -43,6 +43,10 @@ if [ "$MODE" = light ]; then
     PREFER_DARK=0
     CODIUM_THEME="Rosé Pine Dawn"
     OBSIDIAN_BASE=moonstone
+    # Rose Pine Dawn slots, from qtile's colors.py RosePineDawn.
+    BASE_A='rgba(250, 244, 237, 0.70)'
+    TEXT=#575279; MUTED=#9893a5; LOVE=#b4637a; FOAM=#56949f
+    GOLD=#ea9d34; PINE=#286983; IRIS=#907aa9; ROSE=#d7827e
 else
     THEME=rose-pine
     GTK_THEME=rose-pine-gtk
@@ -51,6 +55,10 @@ else
     PREFER_DARK=1
     CODIUM_THEME="Rosé Pine Moon"
     OBSIDIAN_BASE=obsidian
+    # Rose Pine slots, from qtile's colors.py RosePine.
+    BASE_A='rgba(25, 23, 36, 0.70)'
+    TEXT=#e0def4; MUTED=#6e6a86; LOVE=#eb6f92; FOAM=#9ccfd8
+    GOLD=#f6c177; PINE=#31748f; IRIS=#c4a7e7; ROSE=#ebbcba
 fi
 
 mkdir -p "$STATE_DIR"
@@ -63,7 +71,10 @@ render() {
     rm -f "$2"
     sed -e "s|@THEME@|$THEME|g" -e "s|@GTK_THEME@|$GTK_THEME|g" \
         -e "s|@ICON_THEME@|$ICON_THEME|g" -e "s|@CURSOR_THEME@|$CURSOR_THEME|g" \
-        -e "s|@PREFER_DARK@|$PREFER_DARK|g" "$1" > "$2"
+        -e "s|@PREFER_DARK@|$PREFER_DARK|g" -e "s|@BASE_A@|$BASE_A|g" \
+        -e "s|@TEXT@|$TEXT|g" -e "s|@MUTED@|$MUTED|g" -e "s|@LOVE@|$LOVE|g" \
+        -e "s|@FOAM@|$FOAM|g" -e "s|@GOLD@|$GOLD|g" -e "s|@PINE@|$PINE|g" \
+        -e "s|@IRIS@|$IRIS|g" -e "s|@ROSE@|$ROSE|g" "$1" > "$2"
 }
 put    "$C/kitty/$THEME.conf"          "$C/kitty/current-theme.conf"
 put    "$C/rofi/colors-$THEME.rasi"    "$C/rofi/colors.rasi"
@@ -76,6 +87,7 @@ render "$C/gtk-3.0/settings.ini.in"    "$C/gtk-3.0/settings.ini"
 render "$C/gtk-4.0/settings.ini.in"    "$C/gtk-4.0/settings.ini"
 render "$C/qt5ct/qt5ct.conf.in"        "$C/qt5ct/qt5ct.conf"
 render "$HOME/.gtkrc-2.0.in"           "$HOME/.gtkrc-2.0"
+render "$C/waybar/style.css.in"        "$C/waybar/style.css"
 
 # kdeglobals: MERGE the theme's keys instead of replacing the file. On a box that
 # also runs Plasma it holds Plasma's fonts, widget style, shortcuts etc.; only

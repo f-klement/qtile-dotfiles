@@ -38,3 +38,4 @@ archive/docs/
 .config/kdeglobals
 .config/i3lock/current.conf
 .gtkrc-2.0
+.config/waybar/style.css
