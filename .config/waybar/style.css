@@ -1,0 +1,55 @@
+/* Rose Pine palette -- same hex values as qtile's colors.py RosePine/
+ * RosePineDawn, dark by default. Light-mode override would need a second
+ * stylesheet swap (qtile re-themes itself the same way via theme.sh +
+ * reload_config); left as a manual `waybar -s style-light.css` swap for now
+ * rather than wiring live GTK-CSS variable switching. */
+* {
+    font-family: "JetBrainsMono Nerd Font";
+    font-size: 12px;
+    min-height: 0;
+}
+
+window#waybar {
+    background-color: rgba(25, 23, 36, 0.70); /* base, 0.70 alpha like qtile's bar opacity */
+    color: #e0def4; /* text */
+}
+
+#workspaces button {
+    padding: 0 6px;
+    color: #6e6a86; /* muted */
+    background: transparent;
+    border: none;
+}
+#workspaces button.active {
+    color: #c4a7e7; /* iris */
+}
+#workspaces button.focused {
+    border-bottom: 2px solid #c4a7e7;
+}
+
+#clock {
+    color: #e0def4;
+}
+
+#custom-theme, #custom-wallpaper, #network, #pulseaudio, #custom-mic,
+#bluetooth, #memory, #cpu, #custom-screenshot, #tray, #custom-updates,
+#custom-power {
+    padding: 0 6px;
+}
+
+#custom-theme     { color: #ebbcba; } /* rose */
+#custom-wallpaper { color: #c4a7e7; } /* iris */
+#network          { color: #9ccfd8; } /* foam */
+#pulseaudio       { color: #c4a7e7; } /* iris */
+#custom-mic       { color: #c4a7e7; }
+#bluetooth        { color: #31748f; } /* pine */
+#memory           { color: #c4a7e7; }
+#cpu              { color: #9ccfd8; }
+#custom-screenshot{ color: #f6c177; } /* gold */
+#custom-updates   { color: #6e6a86; }
+#custom-updates.updates { color: #9ccfd8; }
+#custom-power     { color: #e0def4; }
+
+#pulseaudio.muted {
+    color: #eb6f92; /* love */
+}

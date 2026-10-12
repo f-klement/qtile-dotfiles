@@ -1,0 +1,50 @@
+/* Rose Pine, same hex values as qtile's colors.py RosePine (dark) */
+.notification-row {
+    background: transparent;
+}
+
+.notification {
+    background: #1f1d2e; /* surface */
+    color: #e0def4;      /* text */
+    border: 1px solid #c4a7e7; /* iris */
+    border-radius: 8px;
+}
+
+.notification-content {
+    padding: 8px;
+}
+
+.notification .summary {
+    color: #e0def4;
+    font-weight: bold;
+}
+
+.notification .body {
+    color: #e0def4;
+}
+
+.notification .time {
+    color: #6e6a86; /* muted */
+}
+
+.control-center {
+    background: #191724; /* base */
+    border: 1px solid #c4a7e7;
+    border-radius: 8px;
+}
+
+.widget-title {
+    color: #e0def4;
+}
+
+.widget-title button {
+    background: #1f1d2e;
+    color: #e0def4;
+    border-radius: 6px;
+}
+
+.close-button {
+    background: #eb6f92; /* love */
+    color: #191724;
+    border-radius: 6px;
+}

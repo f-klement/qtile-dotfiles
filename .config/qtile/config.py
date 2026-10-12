@@ -735,9 +735,14 @@ PORTAL_DIALOG = Match(wm_class=re.compile(
 # _dock_to_top), so they grab attention without sitting over whatever you
 # were looking at.
 ALERT_DIALOG = Match(wm_class=re.compile(
-    r"^(notification|dialog|error|Yad|pinentry(-gtk-2)?|ssh-askpass)$", re.I))
-ALERT_DIALOG_TITLE = Match(title=re.compile(r"^(Confirmation|pinentry)$"))
-ALERT_WINDOWS = [ALERT_DIALOG, ALERT_DIALOG_TITLE]
+    r"^(notification|dialog|error|Yad|pinentry(-gtk-2)?|ssh-askpass)$|.*polkit", re.I))
+ALERT_DIALOG_TITLE = Match(title=re.compile(r"^(Confirmation|pinentry|Authentication Required)$"))
+# virt-viewer's own small popups (e.g. when an output/display closes) share
+# its wm_class with the real head windows but carry no title at all -- the
+# VIRT_VIEWER_HEAD* matches above require "debian-work..." so they never
+# catch these; title="" catches them without also matching a real head.
+VIRT_VIEWER_POPUP = Match(wm_class=_VV_CLASS, title=re.compile(r"^$"))
+ALERT_WINDOWS = [ALERT_DIALOG, ALERT_DIALOG_TITLE, VIRT_VIEWER_POPUP]
 
 # Floated, centred, raised above everything and focused (_keep_on_top).
 ON_TOP = [SCREENSHOT_EDITOR, PORTAL_DIALOG, CITRIX_DIALOG]
@@ -911,8 +916,8 @@ _OPACITY_UNFOCUSED = 0.85
 def _apply_opacity(focused):
     for w in list(qtile.windows_map.values()):
         try:
-            if SCREENSHOT_EDITOR.compare(w):
-                continue   # stays opaque, see _keep_on_top
+            if SCREENSHOT_EDITOR.compare(w) or any(_VV_CLASS.match(c) for c in (w.get_wm_class() or [])):
+                continue   # stays opaque: screenshot editor (_keep_on_top), virt-viewer (below)
             w.opacity = _OPACITY_FOCUSED if w is focused else _OPACITY_UNFOCUSED
         except Exception:
             pass
@@ -923,6 +928,13 @@ def _opacity_on_focus(window):
 
 @hook.subscribe.client_managed
 def _opacity_on_managed(window):
+    # virt-viewer (debian-work's SPICE GL surface) stays fully opaque: any
+    # opacity < 1.0 forces the compositor to alpha-composite every frame
+    # instead of scanning it out directly, which on a continuously-updating
+    # GL surface running at its own refresh rate is a plausible source of
+    # the tearing/artifacts/misalignment seen on the landscape head.
+    if any(_VV_CLASS.match(c) for c in (window.get_wm_class() or [])):
+        return
     try:
         window.opacity = _OPACITY_UNFOCUSED
     except Exception:

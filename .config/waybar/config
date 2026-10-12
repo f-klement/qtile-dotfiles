@@ -1,0 +1,115 @@
+// Waybar config -- mirrors qtile's own bar (config.py's init_widgets):
+// workspaces left, clock centered, theme/wallpaper/network/volume/mic/
+// bluetooth/memory/cpu/screenshot/tray/updates/power on the right. Reuses
+// the same scripts qtile's bar uses (~/bin/theme.sh, wallpaper.sh,
+// screenshot.sh, ~/.config/qtile/system_update.sh, system_power.sh) rather
+// than new ones, so both sessions behave the same way.
+{
+    "layer": "top",
+    "position": "top",
+    "height": 28,
+    "spacing": 2,
+    "margin-top": 0,
+
+    "modules-left": ["hyprland/workspaces"],
+    "modules-center": ["clock"],
+    "modules-right": [
+        "custom/theme", "custom/wallpaper",
+        "network", "pulseaudio", "custom/mic", "bluetooth",
+        "memory", "cpu",
+        "custom/screenshot", "tray", "custom/updates", "custom/power"
+    ],
+
+    "hyprland/workspaces": {
+        "format": "{id}",
+        "on-click": "activate",
+        "persistent-workspaces": { "*": 1 }
+    },
+
+    "clock": {
+        "format": "{:%H:%M   %d-%m-%Y}",
+        "timezone": "Europe/Vienna"
+    },
+
+    "custom/theme": {
+        "format": "{}",
+        "exec": "sh -c 'if [ \"$(cat ~/.local/state/theme-mode 2>/dev/null)\" = light ]; then echo \"\"; else echo \"\"; fi'",
+        "interval": 5,
+        "on-click": "~/bin/theme.sh toggle",
+        "tooltip": false
+    },
+
+    "custom/wallpaper": {
+        "format": "",
+        "on-click": "~/bin/wallpaper.sh",
+        "tooltip-format": "Random wallpaper"
+    },
+
+    "network": {
+        "format-wifi": "{bandwidthDownBytes}▾{bandwidthUpBytes}▴",
+        "format-ethernet": "{bandwidthDownBytes}▾{bandwidthUpBytes}▴",
+        "format-disconnected": "⚠",
+        "interval": 5,
+        "on-click-right": "nm-connection-editor"
+    },
+
+    "pulseaudio": {
+        "format": " {volume}%",
+        "format-muted": " M",
+        "on-click": "pactl set-sink-mute @DEFAULT_SINK@ toggle",
+        "on-click-middle": "pavucontrol",
+        "on-scroll-up": "pactl set-sink-volume @DEFAULT_SINK@ +5%",
+        "on-scroll-down": "pactl set-sink-volume @DEFAULT_SINK@ -5%"
+    },
+
+    "custom/mic": {
+        "format": "{}",
+        "exec": "sh -c 'wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null | grep -q MUTED && echo \"\" || echo \"\"'",
+        "interval": 5,
+        "on-click": "wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle",
+        "tooltip": false
+    },
+
+    "bluetooth": {
+        "format": "",
+        "format-connected": "",
+        "format-disabled": "",
+        "on-click": "rfkill toggle bluetooth",
+        "on-click-right": "blueman-manager"
+    },
+
+    "memory": {
+        "format": " {used:0.1f}G",
+        "interval": 5
+    },
+
+    "cpu": {
+        "format": " {usage}%",
+        "interval": 5
+    },
+
+    "custom/screenshot": {
+        "format": "",
+        "on-click": "~/bin/screenshot.sh gui",
+        "on-click-middle": "~/bin/screenshot.sh full",
+        "on-click-right": "~/bin/screenshot.sh clip",
+        "tooltip-format": "Left: select region  Middle: full screen  Right: full screen to clipboard"
+    },
+
+    "tray": {
+        "icon-size": 16,
+        "spacing": 6
+    },
+
+    "custom/updates": {
+        "format": "󱧕 {}",
+        "exec": "dnf check-update --quiet 2>/dev/null | grep -c '^[a-zA-Z]' || true",
+        "interval": 1800,
+        "on-click": "kitty -e ~/.config/qtile/system_update.sh"
+    },
+
+    "custom/power": {
+        "format": "⏻",
+        "on-click": "kitty -e ~/.config/qtile/system_power.sh"
+    }
+}

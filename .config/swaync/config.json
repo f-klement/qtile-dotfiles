@@ -1,0 +1,29 @@
+{
+    "$schema": "/etc/xdg/swaync/configSchema.json",
+    "positionX": "right",
+    "positionY": "top",
+    "control-center-margin-top": 8,
+    "control-center-margin-right": 8,
+    "notification-window-width": 300,
+    "timeout": 10,
+    "timeout-low": 5,
+    "timeout-critical": 0,
+    "fit-to-screen": true,
+    "notification-2fa-action": true,
+    "layer-shell": true,
+    "cssPriority": "application",
+    "control-center-layer": "overlay",
+    "layer": "overlay",
+    "notification-icon-size": 48,
+    "widgets": [
+        "title",
+        "dnd",
+        "notifications"
+    ],
+    "widget-config": {
+        "title": {
+            "text": "Notifications",
+            "clear-all-button": true
+        }
+    }
+}
