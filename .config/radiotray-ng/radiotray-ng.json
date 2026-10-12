@@ -1,0 +1,11 @@
+{
+    "bookmarks" : "/home/admin/.config/radiotray-ng/bookmarks.json",
+    "last-station-notifications" : true,
+    "notification-verbose" : true,
+    "notifications" : true,
+    "radiotray-ng-notification" : "radiotray-custom-on-symbolic",
+    "radiotray-ng-off" : "radiotray-custom-off-symbolic",
+    "radiotray-ng-on" : "radiotray-custom-on-symbolic",
+    "split-title" : true,
+    "volume-level" : 100
+}

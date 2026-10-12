@@ -230,8 +230,15 @@ def make_pane():
             # same effect as its apply_blur_on/off functions.
             (BLUR, "Blur", blur, "on" if blur else "off",
              lambda: after(["hyprctl", "keyword", "decoration:blur:enabled", "0" if blur else "1"])),
+            # Full SSID-list/connect/toggle menu (NetworkMenu.sh, ported
+            # from the reference) instead of a bare on/off toggle -- its
+            # own first menu entry already covers "turn Wi-Fi off/on", so
+            # nothing is lost, and it's a strict superset of what a plain
+            # toggle tile could do. Launched detached (not via after()):
+            # it's an interactive rofi menu, not a fire-and-forget toggle,
+            # so there's no fixed delay after which to re-read state.
             (WIFI if won else WIFI_OFF, "Wi-Fi", won, ssid or ("on, not connected" if won else "off"),
-             lambda: after(["nmcli", "radio", "wifi", "off" if won else "on"], 800)),
+             lambda: spawn([f"{SCRIPTS}/NetworkMenu.sh"])),
             # BluetoothToggle.sh doesn't exist -- rfkill, same as qtile's own
             # BluetoothIcon widget (config.py) uses for this exact toggle.
             (BT, "Bluetooth", bon, (f"{bconn} connected" if bconn else "on") if bon else "off",

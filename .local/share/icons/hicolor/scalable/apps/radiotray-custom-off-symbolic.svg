@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" version="1.1">
+ <!-- eighth note, dimmed = idle, 0.6 so it still reads on the light bar (see the -on- file for the -symbolic notes;
+      GTK overrides fill only, so the opacity survives the recolour) -->
+ <g opacity="0.6">
+  <path d="M2.09 12.87A2.6 2 -15 1 0 7.11 11.53A2.6 2 -15 1 0 2.09 12.87Z" fill="#bebebe"/>
+  <rect x="6.8" y="1.5" width="1.5" height="11" fill="#bebebe"/>
+  <path d="M8.2 1.5C11 2.2 12.4 4 12.4 6.3C12.4 6.9 12.3 7.4 12.1 7.9C12.7 6 11.7 4.2 8.2 3.3Z" fill="#bebebe"/>
+ </g>
+</svg>

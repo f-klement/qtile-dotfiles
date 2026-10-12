@@ -39,7 +39,7 @@ window#waybar {
 
 #idle_inhibitor, #custom-menu, #custom-lock, #custom-light-dark,
 #custom-weather, #custom-swaync, #tray, #mpris, #bluetooth, #battery,
-#pulseaudio, #network, #custom-screenshot, #custom-updates, #custom-power {
+#pulseaudio, #custom-power, #wlr-taskbar {
     padding: 0 6px;
 }
 
@@ -49,6 +49,7 @@ window#waybar {
 #custom-light-dark  { color: @GOLD@; }
 #custom-weather     { color: @PINE@; }
 #custom-swaync      { color: @ROSE@; }
+#wlr-taskbar         { color: @TEXT@; }
 #mpris              { color: @IRIS@; }
 #bluetooth          { color: @PINE@; }
 #battery            { color: @TEXT@; }
@@ -56,10 +57,6 @@ window#waybar {
 #battery.critical   { color: @LOVE@; }
 #pulseaudio         { color: @IRIS@; }
 #pulseaudio.muted   { color: @LOVE@; }
-#network            { color: @FOAM@; }
-#network.disconnected { color: @LOVE@; }
-#custom-screenshot  { color: @GOLD@; }
-#custom-updates     { color: @MUTED@; }
 #custom-power       { color: @TEXT@; }
 
 #tray {
@@ -72,3 +69,12 @@ window#waybar {
     -gtk-icon-effect: highlight;
     color: @LOVE@;
 }
+
+/* waybar recolours "-symbolic" tray icons (radiotray-ng's
+ * radiotray-custom-{on,off}-symbolic, see ~/.local/share/icons) with the
+ * item's own style context, and does the first load before the item is
+ * packed into #tray -- at that point #tray's color isn't inherited yet
+ * and the pixbuf bakes in the GTK theme's default fg. A screen-level rule
+ * does reach the unparented widget: name the item directly (a bare
+ * GtkEventBox, css node "widget", carrying waybar's SNI status class). */
+widget.active, widget.passive, widget.needs-attention { color: @TEXT@; }

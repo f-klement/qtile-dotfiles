@@ -1,29 +1,100 @@
 {
-    "$schema": "/etc/xdg/swaync/configSchema.json",
-    "positionX": "right",
-    "positionY": "top",
-    "control-center-margin-top": 8,
-    "control-center-margin-right": 8,
-    "notification-window-width": 300,
-    "timeout": 10,
-    "timeout-low": 5,
-    "timeout-critical": 0,
-    "fit-to-screen": true,
-    "notification-2fa-action": true,
-    "layer-shell": true,
-    "cssPriority": "application",
-    "control-center-layer": "overlay",
-    "layer": "overlay",
-    "notification-icon-size": 48,
-    "widgets": [
-        "title",
-        "dnd",
-        "notifications"
-    ],
-    "widget-config": {
-        "title": {
-            "text": "Notifications",
-            "clear-all-button": true
+  "$schema": "/etc/xdg/swaync/configSchema.json",
+  "positionX": "center",
+  "positionY": "top",
+  "layer": "overlay",
+  "control-center-layer": "top",
+  "layer-shell": true,
+  "cssPriority": "application",
+  "control-center-margin-top": 8,
+  "control-center-margin-bottom": 0,
+  "control-center-margin-right": 0,
+  "control-center-margin-left": 0,
+  "notification-2fa-action": true,
+  "notification-inline-replies": false,
+  "notification-icon-size": 48,
+  "notification-body-image-height": 100,
+  "notification-body-image-width": 200,
+  "timeout": 10,
+  "timeout-low": 5,
+  "timeout-critical": 0,
+  "fit-to-screen": false,
+  "control-center-width": 400,
+  "control-center-height": 720,
+  "notification-window-width": 400,
+  "keyboard-shortcuts": true,
+  "image-visibility": "when-available",
+  "transition-time": 200,
+  "hide-on-clear": false,
+  "hide-on-action": true,
+  "script-fail-notify": true,
+  "widgets": [
+    "dnd",
+    "buttons-grid",
+    "mpris",
+    "volume",
+    "backlight",
+    "title",
+    "notifications"
+  ],
+  "widget-config": {
+    "title": {
+      "text": "Notifications",
+      "clear-all-button": true,
+      "button-text": "Clear"
+    },
+    "dnd": {
+      "text": "Do Not Disturb"
+    },
+    "label": {
+      "max-lines": 1,
+      "text": "Notification"
+    },
+    "mpris": {
+      "image-size": 48,
+      "image-radius": 8
+    },
+    "volume": {
+      "label": "󰕾"
+    },
+    "backlight": {
+      "label": "󰃟"
+    },
+    "buttons-grid": {
+      "actions": [
+        {
+          "label": "󰐥",
+          "command": "systemctl poweroff"
+        },
+        {
+          "label": "󰜉",
+          "command": "systemctl reboot"
+        },
+        {
+          "label": "󰌾",
+          "command": "loginctl lock-session"
+        },
+        {
+          "label": "󰍃",
+          "command": "hyprctl dispatch exit"
+        },
+        {
+          "label": "󰀝",
+          "command": "sh -c 'if rfkill list wifi | grep -q \"Soft blocked: yes\"; then rfkill unblock wifi; notify-send -u low -a swaync \"Airplane mode: OFF\"; else rfkill block wifi; notify-send -u low -a swaync \"Airplane mode: ON\"; fi; ~/.config/qemu-network-watchdog/QemuNetworkWatchdog.sh --once & disown'"
+        },
+        {
+          "label": "󰕾",
+          "command": "pactl set-sink-mute @DEFAULT_SINK@ toggle"
+        },
+        {
+          "label": "󰍬",
+          "command": "pactl set-source-mute @DEFAULT_SOURCE@ toggle"
+        },
+        {
+          "label": "󰂯",
+          "command": "blueman-manager"
         }
+      ]
     }
+  }
 }

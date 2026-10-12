@@ -1,11 +1,3 @@
-// Waybar config -- adapted from hyprland-arch-dotfiles's "Proposal 1 —
-// Solid" layout and its modules file, wired to this host's actual setup:
-// the hyprpanes dropdown panes (weather/keybinds/bluetooth/quick-settings/
-// calendar -- no power pane, PowerPane was TUXEDO-only and skipped
-// entirely), qtile's shared scripts (theme.sh/wallpaper.sh/screenshot.sh)
-// instead of the reference repo's DarkLight.sh/LockScreen.sh/etc (none of
-// which exist here), and direct commands (loginctl, rfkill, pactl) where
-// the reference repo called its own now-missing scripts.
 {
     "layer": "top",
     "position": "top",
@@ -19,13 +11,12 @@
     "margin-top": 0,
     "margin-left": 0,
     "margin-right": 0,
-
     "modules-left": [
         "hyprland/workspaces",
         "custom/separator",
+        "wlr/taskbar",
         "custom/weather"
     ],
-
     "modules-center": [
         "custom/menu",
         "custom/separator",
@@ -37,7 +28,6 @@
         "custom/separator",
         "custom/lock"
     ],
-
     "modules-right": [
         "custom/swaync",
         "tray",
@@ -47,70 +37,57 @@
         "battery",
         "custom/separator",
         "pulseaudio",
-        "network",
         "custom/separator",
-        "custom/screenshot",
-        "custom/updates",
         "custom/power"
     ],
-
     "hyprland/workspaces": {
-        "format": "{id}",
+        "active-only": false,
+        "all-outputs": true,
+        "format": "{icon}",
+        "show-special": false,
         "on-click": "activate",
-        "persistent-workspaces": { "*": 1 }
+        "move-to-monitor": true,
+        "on-scroll-up": "hyprctl dispatch workspace e+1",
+        "on-scroll-down": "hyprctl dispatch workspace e-1",
+        "persistent-workspaces": {
+            "1": [],
+            "2": [],
+            "3": [],
+            "4": [],
+            "5": [],
+            "6": [],
+            "7": [],
+            "8": [],
+            "9": []
+        },
+        "format-icons": {
+            "0": "",
+            "1": "I",
+            "2": "II",
+            "3": "III",
+            "4": "IV",
+            "5": "V",
+            "6": "VI",
+            "7": "VII",
+            "8": "VIII",
+            "9": "IX",
+            "10": "X"
+        }
     },
-
     "custom/separator": {
-        "format": "│",
+        "format": "",
+        "interval": "once",
         "tooltip": false
     },
-
-    "clock": {
-        "format": "{:%H:%M   %d-%m-%Y}",
-        "timezone": "Europe/Vienna"
+    "wlr/taskbar": {
+        "format": "{icon}{title:.1}",
+        "icon-size": 15,
+        "tooltip": false,
+        "tooltip-format": "{title:.1}",
+        "on-click": "activate",
+        "on-click-middle": "close",
+        "on-click-right": "minimize"
     },
-
-    "idle_inhibitor": {
-        "format": "{icon}",
-        "format-icons": { "activated": "󰈈", "deactivated": "󰈉" }
-    },
-
-    // DarkLight.sh doesn't exist -- qtile's own ~/bin/theme.sh toggle is
-    // the shared mechanism (re-themes both sessions the same way). Right-
-    // click toggles hyprsunset inline (NightlightToggle.sh doesn't exist
-    // either, same inline toggle QuickSettings.py's night-light tile uses).
-    "custom/light_dark": {
-        "format": "{}",
-        "exec": "sh -c 'if [ \"$(cat ~/.local/state/theme-mode 2>/dev/null)\" = light ]; then echo \"󰖨\"; else echo \"󰖔\"; fi'",
-        "interval": 5,
-        "on-click": "~/bin/theme.sh toggle",
-        "on-click-right": "bash -c 'pidof hyprsunset >/dev/null && pkill hyprsunset || hyprsunset -t 4000 &'",
-        "on-click-middle": "~/bin/wallpaper.sh",
-        "tooltip-format": "Left: toggle theme  Right: toggle night light  Middle: random wallpaper"
-    },
-
-    "custom/lock": {
-        "format": "󰌾",
-        "on-click": "loginctl lock-session",
-        "tooltip-format": "Lock screen"
-    },
-
-    // qtile's own rofi drun launcher command, not the reference repo's
-    // extra filebrowser/window modi (rofi config here doesn't define
-    // those extra modes).
-    "custom/menu": {
-        "format": "󰍜",
-        "on-click": "pkill rofi || rofi -show drun",
-        "tooltip-format": "App launcher (rofi)"
-    },
-
-    // Weather.py exists as ported (UserScripts/Weather.py) but its
-    // systemd-timer-driven cache file (weather.bar.json, refreshed every
-    // 15min by a weather.timer unit) was NOT ported -- that's a separate
-    // piece of infrastructure the reference repo relies on that adds real
-    // scope beyond "the bar + the panes". Runs the script directly each
-    // poll instead; Weather.py's own 15-min internal cache (see its own
-    // CACHE path) still avoids hammering the API on every single poll.
     "custom/weather": {
         "format": "{}",
         "return-type": "json",
@@ -120,17 +97,51 @@
         "on-click-right": "~/.config/hypr/UserScripts/hyprpanes.py toggle weather",
         "tooltip": true
     },
-
+    "custom/menu": {
+        "format": "󰍜",
+        "tooltip-format": "App launcher (rofi)",
+        "on-click": "pkill rofi || rofi -show drun -modi run,drun,filebrowser,window",
+        "on-click-middle": "~/.config/hypr/UserScripts/WallpaperSelect.sh"
+    },
+    "idle_inhibitor": {
+        "format": "{icon}",
+        "format-icons": {
+            "activated": "󰈈",
+            "deactivated": "󰈉"
+        }
+    },
+    "clock": {
+        "interval": 60,
+        "format": " {:%H:%M}",
+        "format-alt": " {:%H:%M   %Y, %d %B, %A}",
+        "tooltip-format": "{:%A, %d. %B %Y}"
+    },
+    "custom/light_dark": {
+        "format": "{}",
+        "exec": "sh -c 'if [ \"$(cat ~/.local/state/theme-mode 2>/dev/null)\" = light ]; then echo \"󰖨\"; else echo \"󰖔\"; fi'",
+        "interval": 5,
+        "on-click": "~/bin/theme.sh toggle",
+        "on-click-right": "bash -c 'pidof hyprsunset >/dev/null && pkill hyprsunset || hyprsunset -t 4000 &'",
+        "on-click-middle": "~/bin/wallpaper.sh",
+        "tooltip-format": "Left: toggle theme  Right: toggle night light  Middle: random wallpaper"
+    },
+    "custom/lock": {
+        "format": "󰌾",
+        "on-click": "loginctl lock-session",
+        "tooltip-format": "Lock screen"
+    },
     "custom/swaync": {
         "tooltip": true,
         "format": "{icon} {text}",
         "format-icons": {
-            "notification": "<span foreground='red'><sup></sup></span>",
-            "none": "",
-            "dnd-notification": "<span foreground='red'><sup></sup></span>",
-            "dnd-none": "",
-            "inhibited-notification": "<span foreground='red'><sup></sup></span>",
-            "inhibited-none": ""
+            "notification": "󰂚<span foreground='red'><sup></sup></span>",
+            "none": "󰂜",
+            "dnd-notification": "󰂛<span foreground='red'><sup></sup></span>",
+            "dnd-none": "󰂛",
+            "inhibited-notification": "󰂛<span foreground='red'><sup></sup></span>",
+            "inhibited-none": "󰂛",
+            "dnd-inhibited-notification": "󰂛<span foreground='red'><sup></sup></span>",
+            "dnd-inhibited-none": "󰂛"
         },
         "return-type": "json",
         "exec-if": "which swaync-client",
@@ -139,12 +150,11 @@
         "on-click-right": "swaync-client -d -sw",
         "escape": true
     },
-
     "tray": {
         "icon-size": 15,
-        "spacing": 8
+        "spacing": 8,
+        "reverse-direction": true
     },
-
     "mpris": {
         "interval": 10,
         "format": "{player_icon} ",
@@ -155,72 +165,100 @@
         "scroll-step": 5.0,
         "on-scroll-up": "pactl set-sink-volume @DEFAULT_SINK@ +5%",
         "on-scroll-down": "pactl set-sink-volume @DEFAULT_SINK@ -5%",
-        "player-icons": { "default": "" },
-        "status-icons": { "paused": "󰏤", "playing": "󰐊", "stopped": "󰓛" },
+        "player-icons": {
+            "chromium": "",
+            "default": "",
+            "firefox": "",
+            "mopidy": "",
+            "mpv": "󰐹",
+            "spotify": "",
+            "vlc": "󰕼"
+        },
+        "status-icons": {
+            "paused": "󰐎",
+            "playing": "",
+            "stopped": ""
+        },
         "max-length": 30
     },
-
     "bluetooth": {
-        "format": "󰂯",
-        "format-connected": "󰂯",
-        "format-disabled": "󰂲",
-        "on-click": "rfkill toggle bluetooth",
-        "on-click-right": "~/.config/hypr/UserScripts/hyprpanes.py toggle bluetooth"
+        "format": "󰂰",
+        "format-on": "󰂰",
+        "format-off": "󰂳",
+        "format-disabled": "󰂳",
+        "format-no-controller": "󰂳",
+        "format-connected": "󰂱 {num_connections}",
+        "tooltip-format": "{controller_alias}  {controller_address}",
+        "tooltip-format-off": "{controller_alias}  {controller_address}\nPowered off",
+        "tooltip-format-disabled": "Bluetooth disabled",
+        "tooltip-format-no-controller": "No bluetooth controller found",
+        "tooltip-format-connected": "{controller_alias}  {controller_address}\n\n{device_enumerate}",
+        "tooltip-format-enumerate-connected": "󰂰 {device_alias}  {device_address}",
+        "tooltip": true,
+        "on-click": "~/.config/hypr/UserScripts/hyprpanes.py toggle bluetooth",
+        "on-click-right": "blueman-manager"
     },
-
-    // No power pane (PowerPane was TUXEDO/tccd-specific, skipped) -- just
-    // the charge readout, no pane click-through.
     "battery": {
+        "align": 0,
+        "rotate": 0,
         "full-at": 100,
-        "states": { "good": 95, "warning": 30, "critical": 15 },
+        "design-capacity": false,
+        "states": {
+            "good": 95,
+            "warning": 30,
+            "critical": 15
+        },
         "format": "{icon} {capacity}%",
         "format-charging": " {capacity}%",
         "format-plugged": "󱘖 {capacity}%",
         "format-full": "{icon} Full",
         "format-alt": "{icon} {time}",
-        "format-icons": ["󰂎", "󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"],
+        "format-icons": [
+            "󰂎",
+            "󰁺",
+            "󰁻",
+            "󰁼",
+            "󰁽",
+            "󰁾",
+            "󰁿",
+            "󰂀",
+            "󰂁",
+            "󰂂",
+            "󰁹"
+        ],
         "format-time": "{H}h {M}min",
         "tooltip": true,
         "tooltip-format": "{timeTo} {power}w"
     },
-
     "pulseaudio": {
-        "format": " {volume}%",
-        "format-muted": "󰝟 M",
-        "on-click": "pactl set-sink-mute @DEFAULT_SINK@ toggle",
-        "on-click-middle": "~/.config/hypr/UserScripts/hyprpanes.py toggle quick",
-        "on-click-right": "pavucontrol",
-        "on-scroll-up": "pactl set-sink-volume @DEFAULT_SINK@ +5%",
-        "on-scroll-down": "pactl set-sink-volume @DEFAULT_SINK@ -5%"
+        "format": "{icon} {volume}%",
+        "format-bluetooth": "{icon} 󰂰 {volume}%",
+        "format-muted": "󰖁",
+        "format-icons": {
+            "headphone": "",
+            "hands-free": "",
+            "headset": "",
+            "phone": "",
+            "portable": "",
+            "car": "",
+            "default": [
+                "",
+                "",
+                "󰕾",
+                ""
+            ]
+        },
+        "scroll-step": 5.0,
+        "max-volume": 100,
+        "on-click": "~/.config/hypr/UserScripts/hyprpanes.py toggle quick",
+        "on-click-middle": "pactl set-sink-mute @DEFAULT_SINK@ toggle",
+        "on-click-right": "pavucontrol -t 3",
+        "tooltip-format": "{icon} {desc} | {volume}%"
     },
-
-    "network": {
-        "format-wifi": "{bandwidthDownBytes}▾{bandwidthUpBytes}▴",
-        "format-ethernet": "{bandwidthDownBytes}▾{bandwidthUpBytes}▴",
-        "format-disconnected": "⚠",
-        "interval": 5,
-        "on-click-right": "nm-connection-editor"
-    },
-
-    "custom/screenshot": {
-        "format": "",
-        "on-click": "~/bin/screenshot.sh gui",
-        "on-click-middle": "~/bin/screenshot.sh full",
-        "on-click-right": "~/bin/screenshot.sh clip",
-        "tooltip-format": "Left: select region  Middle: full screen  Right: full screen to clipboard"
-    },
-
-    "custom/updates": {
-        "format": "󱧕 {}",
-        "exec": "dnf check-update --quiet 2>/dev/null | grep -c '^[a-zA-Z]' || true",
-        "interval": 1800,
-        "on-click": "kitty -e ~/.config/qtile/system_update.sh"
-    },
-
     "custom/power": {
         "format": "⏻",
-        "on-click": "wlogout",
-        "on-click-right": "~/.config/hypr/UserScripts/hyprpanes.py toggle keybinds",
-        "tooltip-format": "Left: logout menu  Right: keybindings cheat sheet"
+        "on-click": "~/.config/hypr/scripts/Wlogout.sh",
+        "on-click-right": "~/.config/hypr/scripts/ChangeBlur.sh",
+        "tooltip-format": "Left: power menu  Right: toggle blur"
     }
 }

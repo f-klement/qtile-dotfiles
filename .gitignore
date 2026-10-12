@@ -39,3 +39,5 @@ archive/docs/
 .config/i3lock/current.conf
 .gtkrc-2.0
 .config/waybar/style.css
+.config/swaync/style.css
+.config/wlogout/style.css
