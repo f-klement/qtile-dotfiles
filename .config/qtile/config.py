@@ -440,6 +440,25 @@ class BluetoothIcon(_StateIcon):
             self.act(("bluetoothctl", "power", "off"))()
 
 
+class ThemedStatusNotifier(widget.StatusNotifier):
+    """StatusNotifier whose icon_theme follows theme.sh across reloads.
+
+    The tray host is a module-level singleton that outlives reload_config, and
+    each item keeps the icon_theme it was created with; the widget only sets
+    the theme for items registered later. Re-point the live items and drop
+    their cached icon name so they look the icon up again in the new theme.
+    """
+
+    def _configure(self, qtile, bar):
+        super()._configure(qtile, bar)
+        from libqtile.widget.helpers.status_notifier.statusnotifier import host
+        for item in host.items:
+            if self.icon_theme and item.icon_theme != self.icon_theme:
+                item.icon_theme = self.icon_theme
+                item.last_icon_name = None
+                item._update_local_icon()
+
+
 def init_widgets(include_systray=True, include_updates=True):
     widgets = [
         # LEFT cluster
@@ -542,12 +561,17 @@ def init_widgets(include_systray=True, include_updates=True):
             BluetoothIcon(update_interval=5),   # bar-default size/padding, as PulseVolume
         ]
     if include_systray:
-        # XEmbed Systray is X11-only; on Wayland tray icons are StatusNotifierItems
-        # (nm-applet --indicator, copyq, ...).
-        if WAYLAND:
-            widgets.append(widget.StatusNotifier(icon_size=12, padding=2))
-        else:
-            widgets.append(widget.Systray(icon_size=12, padding=2))
+        # StatusNotifier on both backends (nm-applet --indicator, copyq, ...).
+        # Not the XEmbed Systray on X11: this Xvnc runs a 32-bit root, so the
+        # embedded icons are ARGB children of the bar and their transparent
+        # pixels show garbage (dark squares on Dawn's cream). StatusNotifier
+        # draws the icon pixmaps itself, so they blend with the bar.
+        # icon_theme: without it pyxdg only searches hicolor, which lacks
+        # nm-applet's nm-device-* names. Same theme theme.sh gives GTK.
+        widgets.append(ThemedStatusNotifier(
+            icon_size=12, padding=2,
+            icon_theme="Papirus-Light" if THEME_MODE == "light" else "Papirus-Dark",
+        ))
     widgets.extend([
         widget.Spacer(length=3),
     ])

@@ -172,7 +172,7 @@ pip install --upgrade pip
 # qtile-extras releases in lockstep with qtile, so pip resolves the pair.
 pip install 'qtile>=0.35' 'qtile-extras>=0.35' mypy typeshed-client typing_extensions pulsectl dbus-next psutil
 # upgrade these separately
-pip install --upgrade python-dateutil dbus-fast pulsectl-asyncio pangocffi cairocffi
+pip install --upgrade python-dateutil dbus-fast pulsectl-asyncio pangocffi cairocffi pyxdg
 EOF
 
 # Unquoted heredoc on purpose: $TARGET_USER must expand into the Exec path.

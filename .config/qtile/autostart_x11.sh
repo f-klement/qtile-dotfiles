@@ -37,7 +37,7 @@ export DESKTOP_SESSION=qtile
 /usr/libexec/pam_kwallet_init &
 
 # Tray
-nm-applet &
+nm-applet --indicator &  # SNI for the StatusNotifier widget
 copyq &
 export QTILE_CHECK_SKIP_STUBS=1
 

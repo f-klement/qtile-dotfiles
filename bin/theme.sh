@@ -58,7 +58,12 @@ echo "$MODE" > "$STATE"
 
 # Generated files. rm first so a stow symlink into the repo becomes a real file
 # instead of being written through (these targets are all git-ignored).
-put()    { rm -f "$2"; cp "$1" "$2"; }
+# A missing variant (e.g. an unstowed package) warns instead of aborting under
+# set -e, which would leave the mode written but nothing else switched.
+put() {
+    [ -f "$1" ] || { echo "theme.sh: missing $1, skipped" >&2; return 0; }
+    rm -f "$2"; cp "$1" "$2"
+}
 render() {
     rm -f "$2"
     sed -e "s|@THEME@|$THEME|g" -e "s|@GTK_THEME@|$GTK_THEME|g" \
@@ -175,6 +180,14 @@ PY
 # Nudge what is already running (apply at session start has nothing to nudge).
 dunstctl reload 2>/dev/null || true
 pkill -USR1 -x kitty 2>/dev/null || true
+# CopyQ renders its tray icon (a pixmap, no icon name) from the palette qt5ct
+# hands it at startup; qt5ct 1.1 does not push a new palette into a running app.
+# Restart it (history is on disk) so the icon contrasts with the new bar.
+if pgrep -x copyq >/dev/null; then
+    copyq exit >/dev/null 2>&1 || true
+    for _ in 1 2 3 4 5 6 7 8 9 10; do pgrep -x copyq >/dev/null || break; sleep 0.3; done
+    setsid -f copyq >/dev/null 2>&1 < /dev/null
+fi
 # EL: venv qtile; Fedora: the RPM's /usr/bin/qtile.
 QTILE="$HOME/.local/venvs/qtile/bin/qtile"
 [ -x "$QTILE" ] || QTILE="$(command -v qtile || true)"
