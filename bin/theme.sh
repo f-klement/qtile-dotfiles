@@ -43,6 +43,16 @@ if [ "$MODE" = light ]; then
     PREFER_DARK=0
     CODIUM_THEME="Rosé Pine Dawn"
     OBSIDIAN_BASE=moonstone
+    # Rose Pine Dawn slots, from qtile's colors.py RosePineDawn.
+    BASE_A='rgba(250, 244, 237, 0.70)'
+    TEXT=#575279; MUTED=#9893a5; LOVE=#b4637a; FOAM=#56949f
+    GOLD=#ea9d34; PINE=#286983; IRIS=#907aa9; ROSE=#d7827e
+    # swaync slots, from the reference's hypr/themes/rose-pine-dawn/swaync.css.
+    ACCENT2=$PINE
+    NOTI_BG='rgba(250, 244, 237, 0.92)'; NOTI_BG_ALT=#f2e9e1
+    MUTED_A='rgba(152, 147, 165, 0.9)'; IRIS_A='rgba(144, 122, 169, 0.15)'
+    # wlogout slots, from the reference's hypr/themes/rose-pine-dawn/wlogout.css.
+    WL_BG='rgba(250, 244, 237, 0.7)'; WL_HOVER_FG=#faf4ed; WL_GLOW='rgba(144, 122, 169, 0.6)'
 else
     THEME=rose-pine
     GTK_THEME=rose-pine-gtk
@@ -51,6 +61,16 @@ else
     PREFER_DARK=1
     CODIUM_THEME="Rosé Pine Moon"
     OBSIDIAN_BASE=obsidian
+    # Rose Pine slots, from qtile's colors.py RosePine.
+    BASE_A='rgba(25, 23, 36, 0.70)'
+    TEXT=#e0def4; MUTED=#6e6a86; LOVE=#eb6f92; FOAM=#9ccfd8
+    GOLD=#f6c177; PINE=#31748f; IRIS=#c4a7e7; ROSE=#ebbcba
+    # swaync slots, from the reference's hypr/themes/rose-pine/swaync.css.
+    ACCENT2=$FOAM
+    NOTI_BG='rgba(38, 35, 58, 0.85)'; NOTI_BG_ALT=#26233a
+    MUTED_A='rgba(110, 106, 134, 0.9)'; IRIS_A='rgba(196, 167, 231, 0.15)'
+    # wlogout slots, from the reference's hypr/themes/rose-pine/wlogout.css.
+    WL_BG='rgba(35, 33, 54, 0.6)'; WL_HOVER_FG=#232136; WL_GLOW='rgba(196, 167, 231, 0.6)'
 fi
 
 mkdir -p "$STATE_DIR"
@@ -68,7 +88,14 @@ render() {
     rm -f "$2"
     sed -e "s|@THEME@|$THEME|g" -e "s|@GTK_THEME@|$GTK_THEME|g" \
         -e "s|@ICON_THEME@|$ICON_THEME|g" -e "s|@CURSOR_THEME@|$CURSOR_THEME|g" \
-        -e "s|@PREFER_DARK@|$PREFER_DARK|g" "$1" > "$2"
+        -e "s|@PREFER_DARK@|$PREFER_DARK|g" -e "s|@BASE_A@|$BASE_A|g" \
+        -e "s|@TEXT@|$TEXT|g" -e "s|@MUTED@|$MUTED|g" -e "s|@LOVE@|$LOVE|g" \
+        -e "s|@FOAM@|$FOAM|g" -e "s|@GOLD@|$GOLD|g" -e "s|@PINE@|$PINE|g" \
+        -e "s|@IRIS@|$IRIS|g" -e "s|@ROSE@|$ROSE|g" -e "s|@ACCENT2@|$ACCENT2|g" \
+        -e "s|@NOTI_BG_ALT@|$NOTI_BG_ALT|g" -e "s|@NOTI_BG@|$NOTI_BG|g" \
+        -e "s|@MUTED_A@|$MUTED_A|g" -e "s|@IRIS_A@|$IRIS_A|g" \
+        -e "s|@WL_BG@|$WL_BG|g" -e "s|@WL_HOVER_FG@|$WL_HOVER_FG|g" \
+        -e "s|@WL_GLOW@|$WL_GLOW|g" "$1" > "$2"
 }
 put    "$C/kitty/$THEME.conf"          "$C/kitty/current-theme.conf"
 put    "$C/rofi/colors-$THEME.rasi"    "$C/rofi/colors.rasi"
@@ -81,6 +108,9 @@ render "$C/gtk-3.0/settings.ini.in"    "$C/gtk-3.0/settings.ini"
 render "$C/gtk-4.0/settings.ini.in"    "$C/gtk-4.0/settings.ini"
 render "$C/qt5ct/qt5ct.conf.in"        "$C/qt5ct/qt5ct.conf"
 render "$HOME/.gtkrc-2.0.in"           "$HOME/.gtkrc-2.0"
+render "$C/waybar/style.css.in"        "$C/waybar/style.css"
+render "$C/swaync/style.css.in"        "$C/swaync/style.css"
+render "$C/wlogout/style.css.in"       "$C/wlogout/style.css"
 
 # kdeglobals: MERGE the theme's keys instead of replacing the file. On a box that
 # also runs Plasma it holds Plasma's fonts, widget style, shortcuts etc.; only

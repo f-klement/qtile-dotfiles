@@ -115,7 +115,19 @@ work() {
         status) virsh -c $uri domstate $vm ;;
         *)
             [ "$(virsh -c $uri domstate $vm)" = running ] || virsh -c $uri start $vm
-            virt-viewer --connect $uri --attach --full-screen --wait --reconnect $vm & disown
+            # setsid -f fully detaches from this terminal's session, not just
+            # the shell's job table (which `& disown` alone does). Without it,
+            # closing the terminal sends SIGHUP straight to virt-viewer via the
+            # pty's controlling-terminal hangup, bypassing disown entirely.
+            #
+            # No --full-screen: with no target it spans EVERY connected host
+            # monitor with its own window (3 monitors here = 3 windows), on
+            # top of the VM's own heads=2 multihead config -- it opens one
+            # window per guest head without it, which qtile then pins to the
+            # right screen (see VIRT_MANAGER in qtile's config.py). Fullscreen
+            # a placed window yourself with Mod+f.
+            setsid -f virt-viewer --connect $uri --attach --wait --reconnect $vm \
+                >/tmp/virt-viewer-debian-work.log 2>&1 </dev/null
             ;;
     esac
 }

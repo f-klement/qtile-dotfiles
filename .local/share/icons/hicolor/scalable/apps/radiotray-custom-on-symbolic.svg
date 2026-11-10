@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" version="1.1">
+ <!-- eighth note, playing = full opacity.
+      "-symbolic" (2026-09-16): waybar's tray loads icons with
+      load_symbolic(), so GTK repaints every rect/circle/path here with the
+      bar's CSS colour (#tray { color: @text }) -- the fill below is just the
+      conventional placeholder. The earlier hard-coded #ededf5 was invisible
+      on the light Rosé Pine Dawn bar. Only rect/circle/path get recoloured,
+      hence the note head is an arc path rather than an <ellipse>. -->
+ <path d="M2.09 12.87A2.6 2 -15 1 0 7.11 11.53A2.6 2 -15 1 0 2.09 12.87Z" fill="#bebebe"/>
+ <rect x="6.8" y="1.5" width="1.5" height="11" fill="#bebebe"/>
+ <path d="M8.2 1.5C11 2.2 12.4 4 12.4 6.3C12.4 6.9 12.3 7.4 12.1 7.9C12.7 6 11.7 4.2 8.2 3.3Z" fill="#bebebe"/>
+</svg>

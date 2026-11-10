@@ -1,0 +1,264 @@
+{
+    "layer": "top",
+    "position": "top",
+    "height": 28,
+    "exclusive": true,
+    "passthrough": false,
+    "spacing": 0,
+    "fixed-center": true,
+    "ipc": true,
+    "reload_style_on_change": true,
+    "margin-top": 0,
+    "margin-left": 0,
+    "margin-right": 0,
+    "modules-left": [
+        "hyprland/workspaces",
+        "custom/separator",
+        "wlr/taskbar",
+        "custom/weather"
+    ],
+    "modules-center": [
+        "custom/menu",
+        "custom/separator",
+        "idle_inhibitor",
+        "custom/separator",
+        "clock",
+        "custom/separator",
+        "custom/light_dark",
+        "custom/separator",
+        "custom/lock"
+    ],
+    "modules-right": [
+        "custom/swaync",
+        "tray",
+        "mpris",
+        "bluetooth",
+        "custom/separator",
+        "battery",
+        "custom/separator",
+        "pulseaudio",
+        "custom/separator",
+        "custom/power"
+    ],
+    "hyprland/workspaces": {
+        "active-only": false,
+        "all-outputs": true,
+        "format": "{icon}",
+        "show-special": false,
+        "on-click": "activate",
+        "move-to-monitor": true,
+        "on-scroll-up": "hyprctl dispatch workspace e+1",
+        "on-scroll-down": "hyprctl dispatch workspace e-1",
+        "persistent-workspaces": {
+            "1": [],
+            "2": [],
+            "3": [],
+            "4": [],
+            "5": [],
+            "6": [],
+            "7": [],
+            "8": [],
+            "9": []
+        },
+        "format-icons": {
+            "0": "",
+            "1": "I",
+            "2": "II",
+            "3": "III",
+            "4": "IV",
+            "5": "V",
+            "6": "VI",
+            "7": "VII",
+            "8": "VIII",
+            "9": "IX",
+            "10": "X"
+        }
+    },
+    "custom/separator": {
+        "format": "",
+        "interval": "once",
+        "tooltip": false
+    },
+    "wlr/taskbar": {
+        "format": "{icon}{title:.1}",
+        "icon-size": 15,
+        "tooltip": false,
+        "tooltip-format": "{title:.1}",
+        "on-click": "activate",
+        "on-click-middle": "close",
+        "on-click-right": "minimize"
+    },
+    "custom/weather": {
+        "format": "{}",
+        "return-type": "json",
+        "exec": "~/.config/hypr/UserScripts/Weather.py",
+        "interval": 900,
+        "on-click": "~/.config/hypr/UserScripts/hyprpanes.py toggle weather",
+        "on-click-right": "~/.config/hypr/UserScripts/hyprpanes.py toggle weather",
+        "tooltip": true
+    },
+    "custom/menu": {
+        "format": "󰍜",
+        "tooltip-format": "App launcher (rofi)",
+        "on-click": "pkill rofi || rofi -show drun -modi run,drun,filebrowser,window",
+        "on-click-middle": "~/.config/hypr/UserScripts/WallpaperSelect.sh"
+    },
+    "idle_inhibitor": {
+        "format": "{icon}",
+        "format-icons": {
+            "activated": "󰈈",
+            "deactivated": "󰈉"
+        }
+    },
+    "clock": {
+        "interval": 60,
+        "format": " {:%H:%M}",
+        "format-alt": " {:%H:%M   %Y, %d %B, %A}",
+        "tooltip-format": "{:%A, %d. %B %Y}"
+    },
+    "custom/light_dark": {
+        "format": "{}",
+        "exec": "sh -c 'if [ \"$(cat ~/.local/state/theme-mode 2>/dev/null)\" = light ]; then echo \"󰖨\"; else echo \"󰖔\"; fi'",
+        "interval": 5,
+        "on-click": "~/bin/theme.sh toggle",
+        "on-click-right": "bash -c 'pidof hyprsunset >/dev/null && pkill hyprsunset || hyprsunset -t 4000 &'",
+        "on-click-middle": "~/bin/wallpaper.sh",
+        "tooltip-format": "Left: toggle theme  Right: toggle night light  Middle: random wallpaper"
+    },
+    "custom/lock": {
+        "format": "󰌾",
+        "on-click": "loginctl lock-session",
+        "tooltip-format": "Lock screen"
+    },
+    "custom/swaync": {
+        "tooltip": true,
+        "format": "{icon} {text}",
+        "format-icons": {
+            "notification": "󰂚<span foreground='red'><sup></sup></span>",
+            "none": "󰂜",
+            "dnd-notification": "󰂛<span foreground='red'><sup></sup></span>",
+            "dnd-none": "󰂛",
+            "inhibited-notification": "󰂛<span foreground='red'><sup></sup></span>",
+            "inhibited-none": "󰂛",
+            "dnd-inhibited-notification": "󰂛<span foreground='red'><sup></sup></span>",
+            "dnd-inhibited-none": "󰂛"
+        },
+        "return-type": "json",
+        "exec-if": "which swaync-client",
+        "exec": "swaync-client -swb | sed -u 's/\"text\": \"0\"/\"text\": \"\"/'",
+        "on-click": "sleep 0.1 && swaync-client -t -sw",
+        "on-click-right": "swaync-client -d -sw",
+        "escape": true
+    },
+    "tray": {
+        "icon-size": 15,
+        "spacing": 8,
+        "reverse-direction": true
+    },
+    "mpris": {
+        "interval": 10,
+        "format": "{player_icon} ",
+        "format-paused": "{status_icon} <i>{dynamic}</i>",
+        "on-click-middle": "playerctl play-pause",
+        "on-click": "playerctl previous",
+        "on-click-right": "playerctl next",
+        "scroll-step": 5.0,
+        "on-scroll-up": "pactl set-sink-volume @DEFAULT_SINK@ +5%",
+        "on-scroll-down": "pactl set-sink-volume @DEFAULT_SINK@ -5%",
+        "player-icons": {
+            "chromium": "",
+            "default": "",
+            "firefox": "",
+            "mopidy": "",
+            "mpv": "󰐹",
+            "spotify": "",
+            "vlc": "󰕼"
+        },
+        "status-icons": {
+            "paused": "󰐎",
+            "playing": "",
+            "stopped": ""
+        },
+        "max-length": 30
+    },
+    "bluetooth": {
+        "format": "󰂰",
+        "format-on": "󰂰",
+        "format-off": "󰂳",
+        "format-disabled": "󰂳",
+        "format-no-controller": "󰂳",
+        "format-connected": "󰂱 {num_connections}",
+        "tooltip-format": "{controller_alias}  {controller_address}",
+        "tooltip-format-off": "{controller_alias}  {controller_address}\nPowered off",
+        "tooltip-format-disabled": "Bluetooth disabled",
+        "tooltip-format-no-controller": "No bluetooth controller found",
+        "tooltip-format-connected": "{controller_alias}  {controller_address}\n\n{device_enumerate}",
+        "tooltip-format-enumerate-connected": "󰂰 {device_alias}  {device_address}",
+        "tooltip": true,
+        "on-click": "~/.config/hypr/UserScripts/hyprpanes.py toggle bluetooth",
+        "on-click-right": "blueman-manager"
+    },
+    "battery": {
+        "align": 0,
+        "rotate": 0,
+        "full-at": 100,
+        "design-capacity": false,
+        "states": {
+            "good": 95,
+            "warning": 30,
+            "critical": 15
+        },
+        "format": "{icon} {capacity}%",
+        "format-charging": " {capacity}%",
+        "format-plugged": "󱘖 {capacity}%",
+        "format-full": "{icon} Full",
+        "format-alt": "{icon} {time}",
+        "format-icons": [
+            "󰂎",
+            "󰁺",
+            "󰁻",
+            "󰁼",
+            "󰁽",
+            "󰁾",
+            "󰁿",
+            "󰂀",
+            "󰂁",
+            "󰂂",
+            "󰁹"
+        ],
+        "format-time": "{H}h {M}min",
+        "tooltip": true,
+        "tooltip-format": "{timeTo} {power}w"
+    },
+    "pulseaudio": {
+        "format": "{icon} {volume}%",
+        "format-bluetooth": "{icon} 󰂰 {volume}%",
+        "format-muted": "󰖁",
+        "format-icons": {
+            "headphone": "",
+            "hands-free": "",
+            "headset": "",
+            "phone": "",
+            "portable": "",
+            "car": "",
+            "default": [
+                "",
+                "",
+                "󰕾",
+                ""
+            ]
+        },
+        "scroll-step": 5.0,
+        "max-volume": 100,
+        "on-click": "~/.config/hypr/UserScripts/hyprpanes.py toggle quick",
+        "on-click-middle": "pactl set-sink-mute @DEFAULT_SINK@ toggle",
+        "on-click-right": "pavucontrol -t 3",
+        "tooltip-format": "{icon} {desc} | {volume}%"
+    },
+    "custom/power": {
+        "format": "⏻",
+        "on-click": "~/.config/hypr/scripts/Wlogout.sh",
+        "on-click-right": "~/.config/hypr/scripts/ChangeBlur.sh",
+        "tooltip-format": "Left: power menu  Right: toggle blur"
+    }
+}
