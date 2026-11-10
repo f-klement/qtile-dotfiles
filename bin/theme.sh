@@ -85,6 +85,7 @@ put() {
     rm -f "$2"; cp "$1" "$2"
 }
 render() {
+    [ -f "$1" ] || { echo "theme.sh: missing $1, skipped" >&2; return 0; }
     rm -f "$2"
     sed -e "s|@THEME@|$THEME|g" -e "s|@GTK_THEME@|$GTK_THEME|g" \
         -e "s|@ICON_THEME@|$ICON_THEME|g" -e "s|@CURSOR_THEME@|$CURSOR_THEME|g" \
